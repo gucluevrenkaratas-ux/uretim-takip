@@ -5,11 +5,11 @@ const K = { ORDERS:"v3_orders", PRODUCTS:"v3_products", USERS:"v3_users", GALVAN
 
 
 const SEED_USERS = [
-  {id:"u1",username:"admin", password:"admin123",name:"Yönetici",    role:"admin"},
-  {id:"u2",username:"ali",   password:"1234",    name:"Ali Kaya",    role:"user"},
-  {id:"u3",username:"ayse",  password:"1234",    name:"Ayşe Demir",  role:"user"},
-  {id:"u4",username:"mehmet",password:"1234",    name:"Mehmet Çelik",role:"user"},
-  {id:"u5",username:"zeynep",password:"1234",    name:"Zeynep Yıldız",role:"user"},
+  {id:"u1",username:"Admin", password:"admin395",name:"Yönetici",    role:"admin"},
+  {id:"u2",username:"Evren",   password:"1903",    name:"Ali Kaya",    role:"user"},
+  {id:"u3",username:"İsa",  password:"2026",    name:"Ayşe Demir",  role:"user"},
+  {id:"u4",username:"Kullanıcı",password:"2026",    name:"Mehmet Çelik",role:"user"},
+
 ];
 const SEED_PRODUCTS = [
   {id:"p1",code:"CR.0107",name:"Boru Ayaklı Yer Makarası",unit:"adet",photo:"https://www.temhamakine.com/images/urunler/d2c404c22869e5b.png"},
