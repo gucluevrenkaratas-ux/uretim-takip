@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
- 
+
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 )
- 
+
 export const db = {
   async get(key) {
     try {
@@ -14,12 +14,12 @@ export const db = {
         .eq('key', key)
         .maybeSingle()
       if (error || !data) return null
-      return { value: data.value }
+      return JSON.parse(data.value) // direkt parse edilmiş veri döner
     } catch (e) {
       return null
     }
   },
- 
+
   async set(key, value) {
     try {
       const strValue = typeof value === 'string' ? value : JSON.stringify(value)
