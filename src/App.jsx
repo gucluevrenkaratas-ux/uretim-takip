@@ -284,27 +284,40 @@ export default function App() {
 
   return <div style={{minHeight:"100vh",background:"#f9fafb",fontFamily:"inherit"}}>
     <style>{CSS}</style>
-    <header style={ss.nav}>
-      <div style={{display:"flex",alignItems:"center",gap:24}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <LogoImg />
-          <div style={{fontSize:15,fontWeight:700,color:"#111827"}}>◈ ÜRETİM TAKİP</div>
-        </div>
-        <nav style={{display:"flex",gap:4}}>
-          {tabs.map(t=><button key={t.key} className={page===t.key?"tab-a":"tab"}
-            onClick={()=>{setPage(t.key);setDetail(null);}}>{t.label}</button>)}
-        </nav>
+
+    {/* Üst bar: logo + kullanıcı */}
+    <header style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <LogoImg />
+        <div style={{fontSize:13,fontWeight:700,color:"#111827",letterSpacing:.3}}>ÜRETİM TAKİP</div>
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:12}}>
-        <span style={{fontSize:12,color:"#6b7280"}}>{user.name}</span>
-        <span style={{fontSize:11,color:"#d1d5db",background:"#374151",padding:"2px 8px",borderRadius:10}}>{user.role==="admin"?"admin":"kullanıcı"}</span>
-        <button onClick={()=>setUser(null)} style={{fontSize:12,color:"#9ca3af",background:"none",border:"none",cursor:"pointer"}}>Çıkış</button>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:11,color:"#6b7280"}}>{user.name.split(" ")[0]}</span>
+        <button onClick={()=>setUser(null)} style={{fontSize:11,color:"#9ca3af",background:"none",border:"none",cursor:"pointer",padding:"4px 8px"}}>Çıkış</button>
       </div>
     </header>
 
+    {/* Alt nav: sekmeler */}
+    <nav style={{background:"#fff",borderBottom:"1px solid #e5e7eb",display:"flex",overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",position:"sticky",top:52,zIndex:99}}>
+      <style>{`.hidesb::-webkit-scrollbar{display:none}`}</style>
+      <div className="hidesb" style={{display:"flex",minWidth:"max-content",padding:"0 8px",gap:2}}>
+        {tabs.map(t=>(
+          <button key={t.key}
+            onClick={()=>{setPage(t.key);setDetail(null);}}
+            style={{
+              padding:"10px 14px", fontSize:12, fontWeight: page===t.key?700:400,
+              border:"none", background:"none", cursor:"pointer", whiteSpace:"nowrap",
+              color: page===t.key?"#2563eb":"#6b7280",
+              borderBottom: page===t.key?"2.5px solid #2563eb":"2.5px solid transparent",
+              fontFamily:"inherit", transition:"all .15s"
+            }}>{t.label}</button>
+        ))}
+      </div>
+    </nav>
+
     {toast && <div style={{...ss.toast,background:toast.type==="err"?"#dc2626":"#16a34a"}}>{toast.msg}</div>}
 
-    <main style={ss.main}>
+    <main style={{padding:"20px 16px",maxWidth:1100,margin:"0 auto"}}>
       {page==="orders"  && !detail && <OrdersPage   ctx={ctx} onDetail={o=>setDetail(o)}/>}
       {page==="orders"  &&  detail && <OrderDetail  ctx={ctx} order={ctx.orders.find(o=>o.id===detail.id)||detail} onBack={()=>setDetail(null)} onUpdate={o=>setDetail(o)}/>}
       {page==="new"                && <NewOrderPage ctx={ctx} onDone={()=>{setPage("orders");setDetail(null);}}/>}
@@ -362,47 +375,66 @@ function OrdersPage({ctx,onDetail}) {
   }
 
   return <div>
-    <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
+    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
       {[{label:"Aktif",val:cnt.aktif,c:"#2563eb",bg:"#eff6ff"},{label:"Geciken",val:cnt.geciken,c:"#dc2626",bg:"#fef2f2"},{label:"Kapatılan",val:cnt.kapatildi,c:"#6b7280",bg:"#f9fafb"},{label:"Toplam",val:ctx.orders.length,c:"#374151",bg:"#f3f4f6"}].map(s=>
-        <div key={s.label} style={{background:s.bg,border:`1px solid ${s.c}22`,borderRadius:10,padding:"14px 20px",minWidth:110}}>
-          <div style={{fontSize:28,fontWeight:700,color:s.c,lineHeight:1}}>{s.val}</div>
-          <div style={{fontSize:11,color:"#9ca3af",marginTop:4,letterSpacing:.5}}>{s.label.toUpperCase()}</div>
+        <div key={s.label} style={{background:s.bg,border:`1px solid ${s.c}22`,borderRadius:10,padding:"12px 16px",minWidth:80,flex:1}}>
+          <div style={{fontSize:26,fontWeight:700,color:s.c,lineHeight:1}}>{s.val}</div>
+          <div style={{fontSize:10,color:"#9ca3af",marginTop:4,letterSpacing:.5}}>{s.label.toUpperCase()}</div>
         </div>
       )}
     </div>
 
-    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-      <div className="tabg">{[["aktif","Aktif"],["kapatildi","Kapatıldı"],["hepsi","Tümü"]].map(([v,l])=><button key={v} className={status===v?"tab-a":"tab"} onClick={()=>setStatus(v)}>{l}</button>)}</div>
-      <input className="inp" style={{width:240}} placeholder="Sipariş no / müşteri / ürün..." value={search} onChange={e=>setSearch(e.target.value)}/>
+    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+      <div className="tabg" style={{flex:1,minWidth:200}}>
+        {[["aktif","Aktif"],["kapatildi","Kapatıldı"],["hepsi","Tümü"]].map(([v,l])=>
+          <button key={v} className={status===v?"tab-a":"tab"} style={{flex:1,textAlign:"center"}} onClick={()=>setStatus(v)}>{l}</button>)}
+      </div>
+      <input className="inp" style={{width:"100%"}} placeholder="Sipariş no / müşteri / ürün..." value={search} onChange={e=>setSearch(e.target.value)}/>
       <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#6b7280"}}>
-        <span>Sırala:</span>
-        <select className="inp" style={{padding:"6px 10px"}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
+        <span style={{whiteSpace:"nowrap"}}>Sırala:</span>
+        <select className="inp" style={{padding:"6px 10px",flex:1}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
           <option value="term">Termin</option><option value="created">Oluşturma</option><option value="customer">Müşteri</option>
         </select>
       </div>
     </div>
 
-    {list.length===0?<div style={ss.empty}>Sipariş bulunamadı.</div>:
-      <div style={ss.card}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead><tr style={{borderBottom:"2px solid #f3f4f6"}}>
-            {["Sipariş No","Müşteri","Ürünler","Oluşturma","Aşama","Termin / Durum",""].map(h=><th key={h} style={ss.th}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {list.map(order=><tr key={order.id} style={{borderBottom:"1px solid #f9fafb",cursor:"pointer"}} className="trhov" onClick={()=>onDetail(order)}>
-              <td style={ss.td}><span style={{fontWeight:700,color:"#1d4ed8",fontFamily:"monospace",fontSize:12}}>{order.orderNo}</span></td>
-              <td style={ss.td}><span style={{fontWeight:500}}>{order.customerName}</span></td>
-              <td style={ss.td}>{(order.items||[]).map(it=>{const p=ctx.products.find(p=>p.id===it.productId);return p?<div key={it.productId} style={{fontSize:12,marginBottom:4,display:"flex",alignItems:"center",gap:7}}>
-                <ProductThumb photo={p.photo} name={p.name} size={26}/>
-                <div><span style={{fontFamily:"monospace",color:"#6b7280",fontSize:10}}>[{p.code}]</span> {p.name} <span style={{color:"#9ca3af"}}>× {it.qty} {p.unit}</span></div>
-              </div>:null;})}</td>
-              <td style={ss.td}><span style={{fontSize:12,color:"#9ca3af"}}>{fmtDate(order.createdAt)}</span><div style={{fontSize:11,color:"#d1d5db"}}>{order.createdBy}</div></td>
-              <td style={ss.td} onClick={e=>e.stopPropagation()}><StageChips stages={order.stages||{imalat:false,montaj:false,sevk:false}} onChange={key=>toggleStage(order,key)}/></td>
-              <td style={ss.td}><TermTag termDate={order.termDate} status={order.status}/>{order.status==="kapatildi"&&<div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>{fmtDate(order.closedAt)}</div>}</td>
-              <td style={{...ss.td,textAlign:"right"}}><span style={{fontSize:12,color:"#6b7280",borderBottom:"1px solid #d1d5db"}}>Detay →</span>{order.notes&&<div style={{fontSize:11,color:"#dc2626",marginTop:3}}>★ not var</div>}</td>
-            </tr>)}
-          </tbody>
-        </table>
+    {list.length===0 ? <div style={ss.empty}>Sipariş bulunamadı.</div> :
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {list.map(order=>(
+          <div key={order.id} style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:12,padding:"14px 16px",cursor:"pointer",transition:"box-shadow .15s"}}
+            onClick={()=>onDetail(order)}>
+            {/* Üst satır: sipariş no + durum */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <span style={{fontWeight:700,color:"#1d4ed8",fontFamily:"monospace",fontSize:13}}>{order.orderNo}</span>
+              <TermTag termDate={order.termDate} status={order.status}/>
+            </div>
+            {/* Müşteri */}
+            <div style={{fontWeight:600,fontSize:14,color:"#111827",marginBottom:6}}>{order.customerName}</div>
+            {/* Ürünler */}
+            <div style={{marginBottom:8}}>
+              {(order.items||[]).map(it=>{
+                const p=ctx.products.find(p=>p.id===it.productId);
+                return p?<div key={it.productId} style={{fontSize:12,color:"#6b7280",display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                  <ProductThumb photo={p.photo} name={p.name} size={22}/>
+                  <span style={{fontFamily:"monospace",color:"#9ca3af",fontSize:10}}>[{p.code}]</span>
+                  <span>{p.name}</span>
+                  <span style={{color:"#9ca3af"}}>× {it.qty} {p.unit}</span>
+                </div>:null;
+              })}
+            </div>
+            {/* Alt satır: aşama + tarih + not */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+              <div onClick={e=>e.stopPropagation()}>
+                <StageChips stages={order.stages||{imalat:false,montaj:false,sevk:false}} onChange={key=>toggleStage(order,key)}/>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:11,color:"#9ca3af"}}>{fmtDate(order.createdAt)}</span>
+                {order.notes && <span style={{fontSize:11,color:"#dc2626"}}>★</span>}
+                <span style={{fontSize:11,color:"#6b7280",borderBottom:"1px solid #d1d5db"}}>Detay →</span>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>}
   </div>;
 }
