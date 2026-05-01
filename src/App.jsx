@@ -105,16 +105,17 @@ function LogoImg() {
 }
 
 // ── ProductThumb ─────────────────────────────────────────────────
-function ProductThumb({photo,name,size=36}) {
+function ProductThumb({photo,name,size=36,onClick}) {
   const [loaded,setLoaded]=useState(false);
   const [err,setErr]=useState(false);
-  const box={width:size,height:size,borderRadius:6,flexShrink:0,border:"1px solid #e5e7eb"};
-  if(!photo) return <div style={{...box,background:"#f3f4f6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.4,color:"#d1d5db"}}>📦</div>;
+  const box={width:size,height:size,borderRadius:6,flexShrink:0,border:"1px solid #e5e7eb",cursor:onClick?"zoom-in":"default"};
+  const handleClick = onClick ? (e=>{e.stopPropagation();onClick();}) : undefined;
+  if(!photo) return <div style={{...box,background:"#f3f4f6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.4,color:"#d1d5db"}} onClick={handleClick}>📦</div>;
   const proxy="https://wsrv.nl/?url="+photo.replace(/^https?:\/\//,"")+"&w=120&h=120&fit=contain&bg=white";
-  return <div style={{...box,position:"relative"}}>
+  return <div style={{...box,position:"relative"}} onClick={handleClick}>
     <img src={proxy} alt={name} onLoad={()=>setLoaded(true)} onError={()=>setErr(true)}
-      style={{...box,objectFit:"contain",background:"#fff",display:loaded?"block":"none",border:"none"}}/>
-    {!loaded && <a href={photo} target="_blank" rel="noreferrer"
+      style={{...box,objectFit:"contain",background:"#fff",display:loaded?"block":"none",border:"none",pointerEvents:"none"}}/>
+    {!loaded && <a href={photo} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}
       style={{...box,background:"#eff6ff",border:"1px solid #bfdbfe",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.32,textDecoration:"none",color:"#3b82f6"}}>🔗</a>}
   </div>;
 }
@@ -417,10 +418,7 @@ function OrdersPage({ctx,onDetail}) {
               {(order.items||[]).map(it=>{
                 const p=ctx.products.find(p=>p.id===it.productId);
                 return p?<div key={it.productId} style={{fontSize:12,color:"#6b7280",display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
-                  <div onClick={e=>{e.stopPropagation();if(p.photo)setZoomPhoto({photo:p.photo,name:p.name});}}
-                    style={{cursor:p.photo?"zoom-in":"default",flexShrink:0}}>
-                    <ProductThumb photo={p.photo} name={p.name} size={22}/>
-                  </div>
+                  <ProductThumb photo={p.photo} name={p.name} size={22} onClick={p.photo?()=>setZoomPhoto({photo:p.photo,name:p.name}):undefined}/>
                   <span style={{fontFamily:"monospace",color:"#9ca3af",fontSize:10}}>[{p.code}]</span>
                   <span>{p.name}</span>
                   <span style={{color:"#9ca3af"}}>× {it.qty} {p.unit}</span>
@@ -566,6 +564,7 @@ function NewOrderPage({ctx,onDone}) {
 function OrderDetail({ctx,order,onBack,onUpdate}) {
   const [closing,setClosing]=useState(false);
   const [confirmClose,setConfirmClose]=useState(false);
+  const [zoomPhoto,setZoomPhoto]=useState(null);
 
   async function closeOrder() {
     setClosing(true);setConfirmClose(false);
@@ -600,6 +599,7 @@ function OrderDetail({ctx,order,onBack,onUpdate}) {
   }
 
   return <div style={{maxWidth:580}}>
+    {zoomPhoto && <ImageModal photo={zoomPhoto.photo} name={zoomPhoto.name} onClose={()=>setZoomPhoto(null)}/>}
     <button style={ss.back} onClick={onBack}>← Sipariş Listesi</button>
     <div style={{...ss.card,padding:24}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22,paddingBottom:18,borderBottom:"1px solid #f3f4f6"}}>
@@ -628,7 +628,7 @@ function OrderDetail({ctx,order,onBack,onUpdate}) {
               <th style={{...ss.th,padding:"9px 14px"}}>Miktar</th>
             </tr></thead>
             <tbody>{(order.items||[]).map((it,i)=>{const p=ctx.products.find(p=>p.id===it.productId);return<tr key={i} style={{borderTop:"1px solid #f3f4f6"}}>
-              <td style={{padding:"8px 14px"}}><ProductThumb photo={p?.photo} name={p?.name||""} size={40}/></td>
+              <td style={{padding:"8px 14px"}}><ProductThumb photo={p?.photo} name={p?.name||""} size={40} onClick={p?.photo?()=>setZoomPhoto({photo:p.photo,name:p.name}):undefined}/></td>
               <td style={{padding:"10px 14px",fontFamily:"monospace",color:"#6b7280",fontSize:12}}>[{p?.code||"?"}]</td>
               <td style={{padding:"10px 14px",fontWeight:500}}>{p?.name||"Bilinmiyor"}</td>
               <td style={{padding:"10px 14px",color:"#374151"}}>{it.qty} {p?.unit||""}</td>
