@@ -594,6 +594,8 @@ function OrderDetail({ctx,order,onBack,onUpdate}) {
 
       <PaletSection
         palets={order.palets||[]}
+        orderItems={order.items||[]}
+        products={ctx.products}
         onSave={async(palets)=>{
           const updated={...order,palets};
           await ctx.saveOrders(ctx.orders.map(o=>o.id===order.id?updated:o));
@@ -620,72 +622,150 @@ function OrderDetail({ctx,order,onBack,onUpdate}) {
 }
 
 // ── Palet Section ─────────────────────────────────────────────────
-function PaletSection({palets,onSave}) {
-  const [list,setList]=useState(palets.length?palets:[{id:genId(),label:"1. Palet",items:""}]);
+function PaletSection({palets,onSave,orderItems,products}) {
+  const defPalet=()=>({id:genId(),label:"",items:[],note:""});
+  const [list,setList]=useState(palets.length?palets:[defPalet()]);
   const [editing,setEditing]=useState(false);
   const [saving,setSaving]=useState(false);
 
-  async function save() {
+  async function save(){
     setSaving(true);
     await onSave(list);
     setSaving(false);
     setEditing(false);
   }
 
-  const addPalet=()=>setList([...list,{id:genId(),label:`${list.length+1}. Palet`,items:""}]);
-  const remPalet=id=>{ if(list.length>1)setList(list.filter(p=>p.id!==id)); };
+  const addPalet=()=>setList([...list,defPalet()]);
+  const remPalet=id=>{if(list.length>1)setList(list.filter(p=>p.id!==id));};
   const updPalet=(id,f,v)=>setList(list.map(p=>p.id===id?{...p,[f]:v}:p));
+
+  // Ürün toggle — paletteki items listesine ekle/çıkar
+  function toggleProduct(paletId, productId, productName, unit) {
+    setList(list.map(p=>{
+      if(p.id!==paletId) return p;
+      const exists=p.items.find(it=>it.productId===productId);
+      if(exists) return {...p,items:p.items.filter(it=>it.productId!==productId)};
+      return {...p,items:[...p.items,{productId,name:productName,qty:"",unit,manual:false}]};
+    }));
+  }
+
+  function updItemQty(paletId,productId,qty){
+    setList(list.map(p=>p.id!==paletId?p:{...p,items:p.items.map(it=>it.productId===productId?{...it,qty}:it)}));
+  }
+
+  function addManualItem(paletId){
+    setList(list.map(p=>p.id!==paletId?p:{...p,items:[...p.items,{id:genId(),name:"",qty:"",unit:"",manual:true}]}));
+  }
+
+  function updManualItem(paletId,itemId,f,v){
+    setList(list.map(p=>p.id!==paletId?p:{...p,items:p.items.map(it=>it.id===itemId?{...it,[f]:v}:it)}));
+  }
+
+  function remItem(paletId,itemId,productId){
+    setList(list.map(p=>p.id!==paletId?p:{...p,items:p.items.filter(it=>productId?it.productId!==productId:it.id!==itemId)}));
+  }
 
   return <div style={{marginBottom:20}}>
     <div style={{fontSize:10,color:"#9ca3af",letterSpacing:.5,fontWeight:600,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <span>PALETLEMEBİLGİSİ</span>
       {!editing
         ? <button onClick={()=>setEditing(true)} style={{fontSize:10,color:"#ea580c",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>✎ Düzenle</button>
-        : <div style={{display:"flex",gap:8}}>
-            <button onClick={save} disabled={saving} style={{fontSize:10,color:"#16a34a",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>{saving?"...":"Kaydet"}</button>
-            <button onClick={()=>{setList(palets.length?palets:[{id:genId(),label:"1. Palet",items:""}]);setEditing(false);}} style={{fontSize:10,color:"#9ca3af",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit"}}>İptal</button>
+        : <div style={{display:"flex",gap:10}}>
+            <button onClick={save} disabled={saving} style={{fontSize:10,color:"#16a34a",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>{saving?"...":"✓ Kaydet"}</button>
+            <button onClick={()=>{setList(palets.length?palets:[defPalet()]);setEditing(false);}} style={{fontSize:10,color:"#9ca3af",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit"}}>İptal</button>
           </div>}
     </div>
 
-    <div style={{border:"1px solid #fed7aa",borderRadius:10,overflow:"hidden",background:"#fff7ed"}}>
-      {list.map((palet,i)=>(
-        <div key={palet.id} style={{padding:"12px 14px",borderBottom:i<list.length-1?"1px solid #fed7aa":"none"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:editing?6:4}}>
-            {/* Palet başlık */}
-            <div style={{width:24,height:24,borderRadius:"50%",background:"#ea580c",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0}}>
-              {i+1}
+    <div style={{border:"1px solid #fed7aa",borderRadius:10,overflow:"hidden"}}>
+      {list.map((palet,pi)=>(
+        <div key={palet.id} style={{background:pi%2===0?"#fff7ed":"#fff8f1",borderBottom:pi<list.length-1?"1px solid #fed7aa":"none",padding:"14px 16px"}}>
+
+          {/* Palet başlık */}
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+            <div style={{width:26,height:26,borderRadius:"50%",background:"#ea580c",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>
+              {pi+1}
             </div>
             {editing
-              ? <input className="inp" style={{flex:1,fontSize:12,fontWeight:600,padding:"4px 8px"}} value={palet.label}
+              ? <input className="inp" style={{flex:1,fontSize:13,fontWeight:600,padding:"5px 10px"}}
+                  placeholder={`${pi+1}. Palet`} value={palet.label}
                   onChange={e=>updPalet(palet.id,"label",e.target.value)}/>
-              : <span style={{fontSize:13,fontWeight:700,color:"#9a3412"}}>{palet.label}</span>}
-            {editing&&list.length>1&&<button onClick={()=>remPalet(palet.id)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>×</button>}
+              : <span style={{fontSize:14,fontWeight:700,color:"#9a3412"}}>{palet.label||`${pi+1}. Palet`}</span>}
+            {editing&&list.length>1&&
+              <button onClick={()=>remPalet(palet.id)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:18,padding:0,marginLeft:"auto"}}>×</button>}
           </div>
 
-          {/* İçerik */}
-          {editing
-            ? <textarea className="inp" style={{width:"100%",fontSize:12,height:72,resize:"vertical",marginLeft:32}}
-                placeholder="Malzeme listesi... (her satıra bir malzeme)"
-                value={palet.items}
-                onChange={e=>updPalet(palet.id,"items",e.target.value)}/>
-            : palet.items
-              ? <div style={{marginLeft:32}}>
-                  {palet.items.split("\n").filter(l=>l.trim()).map((line,j)=>(
-                    <div key={j} style={{fontSize:12,color:"#7c2d12",padding:"2px 0",display:"flex",gap:6,alignItems:"flex-start"}}>
-                      <span style={{color:"#ea580c",flexShrink:0}}>→</span>
-                      <span>{line}</span>
-                    </div>
-                  ))}
+          {/* Ürün listesi */}
+          {(palet.items||[]).length>0&&(
+            <div style={{marginLeft:36,marginBottom:editing?10:0}}>
+              {(palet.items||[]).map((it,ii)=>(
+                <div key={it.productId||it.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <span style={{color:"#ea580c",fontSize:12,flexShrink:0}}>→</span>
+                  {it.manual
+                    ? editing
+                      ? <>
+                          <input className="inp" style={{flex:2,fontSize:12,padding:"4px 8px"}} placeholder="Malzeme adı" value={it.name} onChange={e=>updManualItem(palet.id,it.id,"name",e.target.value)}/>
+                          <input className="inp" style={{width:60,fontSize:12,padding:"4px 6px"}} placeholder="Adet" value={it.qty} onChange={e=>updManualItem(palet.id,it.id,"qty",e.target.value)}/>
+                          <input className="inp" style={{width:50,fontSize:12,padding:"4px 6px"}} placeholder="Birim" value={it.unit} onChange={e=>updManualItem(palet.id,it.id,"unit",e.target.value)}/>
+                          <button onClick={()=>remItem(palet.id,it.id,null)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:16,padding:0}}>×</button>
+                        </>
+                      : <span style={{fontSize:12,color:"#7c2d12"}}>{it.name}{it.qty&&` × ${it.qty} ${it.unit||""}`}</span>
+                    : editing
+                      ? <>
+                          <span style={{flex:1,fontSize:12,color:"#7c2d12",fontWeight:500}}>{it.name}</span>
+                          <input className="inp" style={{width:70,fontSize:12,padding:"4px 6px"}} placeholder="Miktar" value={it.qty} onChange={e=>updItemQty(palet.id,it.productId,e.target.value)}/>
+                          <span style={{fontSize:11,color:"#9ca3af",minWidth:24}}>{it.unit}</span>
+                          <button onClick={()=>remItem(palet.id,null,it.productId)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:16,padding:0}}>×</button>
+                        </>
+                      : <span style={{fontSize:12,color:"#7c2d12"}}>{it.name}{it.qty&&` × ${it.qty} ${it.unit||""}`}</span>}
                 </div>
-              : <div style={{marginLeft:32,fontSize:12,color:"#fdba74",fontStyle:"italic"}}>Henüz içerik yok</div>}
+              ))}
+            </div>
+          )}
+
+          {(palet.items||[]).length===0&&!editing&&
+            <div style={{marginLeft:36,fontSize:12,color:"#fdba74",fontStyle:"italic"}}>İçerik eklenmemiş</div>}
+
+          {/* Düzenleme modu — ürün seçimi */}
+          {editing&&(
+            <div style={{marginLeft:36,marginTop:8}}>
+              {/* Siparişten ürünler */}
+              {orderItems.length>0&&(
+                <div style={{marginBottom:8}}>
+                  <div style={{fontSize:10,color:"#9ca3af",marginBottom:6,letterSpacing:.3}}>SİPARİŞTEN EKLE</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                    {orderItems.map(oi=>{
+                      const prod=products.find(p=>p.id===oi.productId);
+                      if(!prod) return null;
+                      const selected=(palet.items||[]).some(it=>it.productId===prod.id);
+                      return <button key={prod.id}
+                        onClick={()=>toggleProduct(palet.id,prod.id,prod.name,prod.unit)}
+                        style={{padding:"4px 10px",borderRadius:20,fontSize:11,border:"1.5px solid",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",
+                          background:selected?"#ea580c":"#fff",
+                          color:selected?"#fff":"#ea580c",
+                          borderColor:"#ea580c"}}>
+                        {selected?"✓ ":""}{prod.name}
+                      </button>;
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Manuel giriş */}
+              <button onClick={()=>addManualItem(palet.id)}
+                style={{fontSize:11,color:"#6b7280",background:"none",border:"1px dashed #d1d5db",borderRadius:6,padding:"4px 12px",cursor:"pointer",fontFamily:"inherit"}}>
+                + Diğer malzeme ekle
+              </button>
+            </div>
+          )}
         </div>
       ))}
 
-      {editing&&<div style={{padding:"10px 14px",borderTop:"1px solid #fed7aa"}}>
-        <button onClick={addPalet} style={{fontSize:12,color:"#ea580c",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>
-          + Palet Ekle
-        </button>
-      </div>}
+      {editing&&(
+        <div style={{padding:"10px 16px",borderTop:"1px solid #fed7aa",background:"#fff7ed"}}>
+          <button onClick={addPalet} style={{fontSize:12,color:"#ea580c",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit",fontWeight:600}}>
+            + Yeni Palet Ekle
+          </button>
+        </div>
+      )}
     </div>
   </div>;
 }
