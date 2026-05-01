@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { db } from "./db.js"
 
-const K = { ORDERS:"v3_orders", PRODUCTS:"v3_products", USERS:"v3_users", GALVANIZ:"v3_galvaniz" };
+const K = { ORDERS:"v3_orders", PRODUCTS:"v3_products", USERS:"v3_users", GALVANIZ:"v3_galvaniz", NOTIFS:"v3_notifs" };
 
 
 const SEED_USERS = [
@@ -248,7 +248,10 @@ export default function App() {
   const [loading,setLoading]=useState(true);
   const [toast,setToast]=useState(null);
   const [detail,setDetail]=useState(null);
-  const [zoomPhoto,setZoomPhoto]=useState(null); // App seviyesinde — her sayfadan erişilir
+  const [zoomPhoto,setZoomPhoto]=useState(null);
+  const [notifs,setNotifs]=useState([]); // {id, msg, orderNo, at, seenBy:[]}
+  const [showNotifs,setShowNotifs]=useState(false);
+  const seenRef=useRef(new Set()); // bu oturumda görülen bildirim id'leri
 
   useEffect(()=>{init();},[]);
 
@@ -282,7 +285,30 @@ export default function App() {
   const saveUsers    =async v=>{setUsers(v);    await db.set(K.USERS,v);};
   const saveGalvaniz =async v=>{setGalvaniz(v); await db.set(K.GALVANIZ,v);};
 
-  function login(u) {
+  const saveNotif=async(msg,orderNo)=>{
+    const cur=await db.get(K.NOTIFS)||[];
+    const n={id:genId(),msg,orderNo,at:new Date().toISOString()};
+    await db.set(K.NOTIFS,[n,...cur].slice(0,50));
+  };
+
+  // 30sn'de bir bildirim kontrol
+  useEffect(()=>{
+    if(!user) return;
+    const check=async()=>{
+      const n=await db.get(K.NOTIFS)||[];
+      setNotifs(n);
+      const unseen=n.filter(x=>!seenRef.current.has(x.id));
+      if(unseen.length>0&&seenRef.current.size>0){
+        unseen.forEach(x=>seenRef.current.add(x.id));
+        showToast(`🔔 ${unseen.length} yeni sipariş bildirimi`);
+      } else { n.forEach(x=>seenRef.current.add(x.id)); }
+    };
+    check();
+    const iv=setInterval(check,30000);
+    return()=>clearInterval(iv);
+  },[user]);
+
+  const ctx={user,orders,products,users,galvaniz,saveOrders,saveProducts,saveUsers,saveGalvaniz,showToast,setZoomPhoto,saveNotif};
     try { sessionStorage.setItem("ut_user", JSON.stringify(u)); } catch(e){}
     setUser(u); setPage("orders");
   }
@@ -317,6 +343,30 @@ export default function App() {
         <div style={{fontSize:13,fontWeight:700,color:"#111827",letterSpacing:.3}}>ÜRETİM TAKİP</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
+        {/* Bildirim zili */}
+        <div style={{position:"relative"}}>
+          <button onClick={()=>setShowNotifs(v=>!v)}
+            style={{background:"none",border:"none",cursor:"pointer",fontSize:18,padding:"4px 6px",position:"relative"}}>
+            🔔
+            {notifs.filter(x=>!seenRef.current.has(x.id)).length>0&&
+              <span style={{position:"absolute",top:2,right:2,width:8,height:8,background:"#dc2626",borderRadius:"50%",display:"block"}}/>}
+          </button>
+          {showNotifs&&<div style={{position:"absolute",right:0,top:"110%",width:300,background:"#fff",border:"1px solid #e5e7eb",borderRadius:10,boxShadow:"0 8px 30px rgba(0,0,0,.12)",zIndex:200,overflow:"hidden"}}>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",fontSize:11,fontWeight:600,color:"#374151",letterSpacing:.5}}>BİLDİRİMLER</div>
+            {notifs.length===0
+              ? <div style={{padding:"20px 14px",fontSize:12,color:"#9ca3af",textAlign:"center"}}>Bildirim yok</div>
+              : <div style={{maxHeight:280,overflowY:"auto"}}>
+                  {notifs.map(n=>(
+                    <div key={n.id} style={{padding:"10px 14px",borderBottom:"1px solid #f9fafb"}}>
+                      <div style={{fontSize:12,color:"#111827"}}>{n.msg}</div>
+                      <div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>
+                        {new Date(n.at).toLocaleDateString("tr-TR")} {new Date(n.at).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}
+                      </div>
+                    </div>
+                  ))}
+                </div>}
+          </div>}
+        </div>
         <span style={{fontSize:11,color:"#6b7280"}}>{user.name.split(" ")[0]}</span>
         <button onClick={logout} style={{fontSize:11,color:"#9ca3af",background:"none",border:"none",cursor:"pointer",padding:"4px 8px"}}>Çıkış</button>
       </div>
@@ -347,18 +397,25 @@ export default function App() {
 // ── Login ─────────────────────────────────────────────────────────
 function LoginPage({users,onLogin}) {
   const [un,setUn]=useState(""); const [pw,setPw]=useState(""); const [err,setErr]=useState("");
+  const [logoErr,setLogoErr]=useState(false);
   function login(){const u=users.find(u=>u.username===un&&u.password===pw);u?onLogin(u):setErr("Kullanıcı adı veya şifre hatalı.");}
   return <div style={{minHeight:"100vh",background:"#111827",display:"flex",alignItems:"center",justifyContent:"center"}}>
     <style>{CSS}</style>
-    <div style={{background:"#fff",padding:"40px 36px",borderRadius:12,width:340,borderTop:"4px solid #2563eb"}}>
-      <div style={{fontSize:32,marginBottom:4}}>◈</div>
-      <div style={{fontSize:20,fontWeight:700,color:"#111827",marginBottom:2}}>Üretim Takip</div>
-      <div style={{fontSize:12,color:"#9ca3af",marginBottom:28}}>Sipariş & Ürün Yönetimi</div>
+    <div style={{background:"#fff",padding:"36px 36px 32px",borderRadius:14,width:340,boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}>
+      {/* Logo alanı */}
+      <div style={{textAlign:"center",marginBottom:24,paddingBottom:20,borderBottom:"1px solid #f3f4f6"}}>
+        {!logoErr
+          ? <img src="https://www.temhamakine.com/images/logo2020.png" alt="Logo"
+              onError={()=>setLogoErr(true)}
+              style={{maxHeight:60,maxWidth:220,objectFit:"contain"}}/>
+          : <div style={{fontSize:28,color:"#2563eb"}}>◈</div>}
+      </div>
+      <div style={{fontSize:16,fontWeight:700,color:"#111827",marginBottom:2,textAlign:"center"}}>Üretim Takip</div>
+      <div style={{fontSize:12,color:"#9ca3af",marginBottom:24,textAlign:"center"}}>Sipariş & Ürün Yönetimi</div>
       <input className="inp" style={{width:"100%",display:"block",marginBottom:10}} placeholder="Kullanıcı adı" value={un} onChange={e=>setUn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()}/>
       <input className="inp" type="password" style={{width:"100%",display:"block",marginBottom:10}} placeholder="Şifre" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()}/>
       {err&&<div style={{fontSize:12,color:"#dc2626",marginBottom:10}}>{err}</div>}
       <button className="btn btn-dark" style={{width:"100%"}} onClick={login}>Giriş Yap →</button>
-      <div style={{fontSize:11,color:"#9ca3af",marginTop:16,textAlign:"center"}}>admin / admin123</div>
     </div>
   </div>;
 }
@@ -464,6 +521,7 @@ function NewOrderPage({ctx,onDone}) {
     const order={id:genId(),orderNo:genOrderNo(ctx.orders),customerName:customer.trim(),termDate,notes:notes.trim(),
       items:items.map(it=>({productId:it.productId,qty:Number(it.qty)})),status:"aktif",createdAt:today(),createdBy:ctx.user.name};
     await ctx.saveOrders([...ctx.orders,order]);
+    await ctx.saveNotif(`Yeni sipariş: ${order.orderNo} — ${customer.trim()} (Termin: ${fmtDate(termDate)})`, order.orderNo);
     ctx.showToast(`${order.orderNo} oluşturuldu!`);setSaving(false);onDone();
   }
 
