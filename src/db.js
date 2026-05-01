@@ -23,9 +23,13 @@ export const db = {
 
   async set(key, value) {
     try {
+      // JSON.stringify zorunlu — Supabase text kolonu string bekler
+      const strValue = typeof value === 'string' ? value : JSON.stringify(value)
       await supabase
         .from('storage')
-        .upsert({ key, value, updated_at: new Date().toISOString() })
-    } catch (e) {}
+        .upsert({ key, value: strValue, updated_at: new Date().toISOString() })
+    } catch (e) {
+      console.error('db.set error:', e)
+    }
   }
 }
