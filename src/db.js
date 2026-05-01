@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
+// URL sonundaki slash veya /rest/v1 varsa temizle
+const rawUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '')
+
 const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
+  supabaseUrl,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 )
 
@@ -14,7 +18,7 @@ export const db = {
         .eq('key', key)
         .maybeSingle()
       if (error || !data) return null
-      return JSON.parse(data.value) // direkt parse edilmiş veri döner
+      return JSON.parse(data.value)
     } catch (e) {
       return null
     }
