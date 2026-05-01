@@ -351,6 +351,7 @@ function OrdersPage({ctx,onDetail}) {
   const [status,setStatus]=useState("aktif");
   const [search,setSearch]=useState("");
   const [sortBy,setSortBy]=useState("term");
+  const [zoomPhoto,setZoomPhoto]=useState(null); // {photo, name}
 
   const list=ctx.orders
     .filter(o=>status==="hepsi"||o.status===status)
@@ -375,6 +376,7 @@ function OrdersPage({ctx,onDetail}) {
   }
 
   return <div>
+    {zoomPhoto && <ImageModal photo={zoomPhoto.photo} name={zoomPhoto.name} onClose={()=>setZoomPhoto(null)}/>}
     <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
       {[{label:"Aktif",val:cnt.aktif,c:"#2563eb",bg:"#eff6ff"},{label:"Geciken",val:cnt.geciken,c:"#dc2626",bg:"#fef2f2"},{label:"Kapatılan",val:cnt.kapatildi,c:"#6b7280",bg:"#f9fafb"},{label:"Toplam",val:ctx.orders.length,c:"#374151",bg:"#f3f4f6"}].map(s=>
         <div key={s.label} style={{background:s.bg,border:`1px solid ${s.c}22`,borderRadius:10,padding:"12px 16px",minWidth:80,flex:1}}>
@@ -415,7 +417,10 @@ function OrdersPage({ctx,onDetail}) {
               {(order.items||[]).map(it=>{
                 const p=ctx.products.find(p=>p.id===it.productId);
                 return p?<div key={it.productId} style={{fontSize:12,color:"#6b7280",display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
-                  <ProductThumb photo={p.photo} name={p.name} size={22}/>
+                  <div onClick={e=>{e.stopPropagation();if(p.photo)setZoomPhoto({photo:p.photo,name:p.name});}}
+                    style={{cursor:p.photo?"zoom-in":"default",flexShrink:0}}>
+                    <ProductThumb photo={p.photo} name={p.name} size={22}/>
+                  </div>
                   <span style={{fontFamily:"monospace",color:"#9ca3af",fontSize:10}}>[{p.code}]</span>
                   <span>{p.name}</span>
                   <span style={{color:"#9ca3af"}}>× {it.qty} {p.unit}</span>
@@ -436,6 +441,23 @@ function OrdersPage({ctx,onDetail}) {
           </div>
         ))}
       </div>}
+  </div>;
+}
+
+// ── Image Modal ───────────────────────────────────────────────────
+function ImageModal({photo,name,onClose}) {
+  useEffect(()=>{
+    const h=e=>{if(e.key==="Escape")onClose();};
+    window.addEventListener("keydown",h);
+    return()=>window.removeEventListener("keydown",h);
+  },[]);
+  const proxy="https://wsrv.nl/?url="+photo.replace(/^https?:\/\//,"")+"&w=600&fit=contain&bg=white";
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,padding:16,maxWidth:500,width:"100%",textAlign:"center"}}>
+      <img src={proxy} alt={name} style={{maxWidth:"100%",maxHeight:"70vh",objectFit:"contain",borderRadius:8}}/>
+      <div style={{marginTop:10,fontSize:13,color:"#374151",fontWeight:500}}>{name}</div>
+      <button onClick={onClose} style={{marginTop:10,fontSize:12,color:"#9ca3af",background:"none",border:"none",cursor:"pointer"}}>Kapat ×</button>
+    </div>
   </div>;
 }
 
@@ -486,15 +508,46 @@ function NewOrderPage({ctx,onDone}) {
         </div>
         {items.map((item,i)=>{
           const sel=ctx.products.find(p=>p.id===item.productId);
-          return <div key={i} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 28px",gap:8,marginBottom:8,alignItems:"center"}}>
-            <input className="inp" style={{fontFamily:"monospace",fontSize:12}} placeholder="CR.0107" value={codes[i]||""}
-              onChange={e=>pickByCode(i,e.target.value)} list={`pc-${i}`}/>
-            <datalist id={`pc-${i}`}>{ctx.products.map(p=><option key={p.id} value={p.code}>{p.name}</option>)}</datalist>
-            <div style={{padding:"8px 10px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:6,fontSize:12,color:sel?"#111827":"#9ca3af"}}>
-              {sel?sel.name:<span style={{fontStyle:"italic"}}>kodu giriniz...</span>}
+          return <div key={i} style={{marginBottom:10,padding:"10px 12px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8}}>
+            {sel ? (
+              /* Seçili ürün — değiştirilebilir */
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                <ProductThumb photo={sel.photo} name={sel.name} size={36}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:10,fontFamily:"monospace",color:"#6b7280"}}>[{sel.code}]</div>
+                  <div style={{fontSize:13,fontWeight:600,color:"#111827"}}>{sel.name}</div>
+                </div>
+                <button onClick={()=>{updItem(i,"productId","");const n=[...codes];n[i]="";setCodes(n);}}
+                  style={{fontSize:11,color:"#6b7280",background:"#fff",border:"1px solid #e5e7eb",borderRadius:5,padding:"3px 9px",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                  ✎ değiştir
+                </button>
+              </div>
+            ) : (
+              /* Ürün seçimi */
+              <div style={{marginBottom:8}}>
+                <div style={{fontSize:10,color:"#9ca3af",marginBottom:5}}>ÜRÜN SEÇ</div>
+                <input className="inp" style={{width:"100%",fontFamily:"monospace",fontSize:12,marginBottom:6}} placeholder="Kod yaz veya aşağıdan seç... (CR.0107)"
+                  value={codes[i]||""} onChange={e=>pickByCode(i,e.target.value)} list={`pc-${i}`} autoFocus={i===items.length-1}/>
+                <datalist id={`pc-${i}`}>{ctx.products.map(p=><option key={p.id} value={p.code}>{p.name}</option>)}</datalist>
+                {/* Ürün listesi hızlı seçim */}
+                <div style={{maxHeight:120,overflowY:"auto",display:"flex",flexDirection:"column",gap:3}}>
+                  {ctx.products.filter(p=>!codes[i]||p.code.toLowerCase().includes((codes[i]||"").toLowerCase())||p.name.toLowerCase().includes((codes[i]||"").toLowerCase())).map(p=>(
+                    <div key={p.id} onClick={()=>{updItem(i,"productId",p.id);const n=[...codes];n[i]=p.code;setCodes(n);}}
+                      style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,cursor:"pointer",background:"#fff",border:"1px solid #e5e7eb"}}>
+                      <ProductThumb photo={p.photo} name={p.name} size={24}/>
+                      <span style={{fontFamily:"monospace",color:"#6b7280",fontSize:10,minWidth:55}}>{p.code}</span>
+                      <span style={{fontSize:12,color:"#111827"}}>{p.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <div style={{fontSize:10,color:"#9ca3af",whiteSpace:"nowrap"}}>MİKTAR</div>
+              <input type="number" className="inp" min="1" placeholder="0" style={{width:90}} value={item.qty} onChange={e=>updItem(i,"qty",e.target.value)}/>
+              {sel && <span style={{fontSize:12,color:"#9ca3af"}}>{sel.unit}</span>}
+              {items.length>1 && <button onClick={()=>remItem(i)} style={{marginLeft:"auto",color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:16,padding:0}}>× Kaldır</button>}
             </div>
-            <input type="number" className="inp" min="1" placeholder="0" value={item.qty} onChange={e=>updItem(i,"qty",e.target.value)}/>
-            {items.length>1?<button onClick={()=>remItem(i)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:18,padding:0}}>×</button>:<div/>}
           </div>;
         })}
       </div>
