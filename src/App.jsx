@@ -83,16 +83,13 @@ function TermTag({termDate,status}) {
 
 // ── ProductThumb ─────────────────────────────────────────────────
 function ProductThumb({photo,name,size=36,onClick}) {
-  const [loaded,setLoaded]=useState(false);
   const [err,setErr]=useState(false);
   const box={width:size,height:size,borderRadius:6,flexShrink:0,border:"1px solid #e5e7eb",cursor:onClick?"zoom-in":"default"};
   const hClick=onClick?(e=>{e.stopPropagation();onClick();}):undefined;
-  if(!photo) return <div style={{...box,background:"#f3f4f6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.4,color:"#d1d5db"}} onClick={hClick}>📦</div>;
-  const proxy="https://wsrv.nl/?url="+photo.replace(/^https?:\/\//,"")+"&w=120&h=120&fit=contain&bg=white";
-  return <div style={{...box,position:"relative"}} onClick={hClick}>
-    <img src={proxy} alt={name} onLoad={()=>setLoaded(true)} onError={()=>setErr(true)}
-      style={{...box,objectFit:"contain",background:"#fff",display:loaded?"block":"none",border:"none",pointerEvents:"none"}}/>
-    {!loaded && !err && <div style={{...box,background:"#eff6ff",border:"1px solid #bfdbfe",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.32,color:"#3b82f6"}}>🔗</div>}
+  if(!photo||err) return <div style={{...box,background:"#f3f4f6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.4,color:"#d1d5db"}} onClick={hClick}>📦</div>;
+  return <div style={{...box,overflow:"hidden",background:"#fff"}} onClick={hClick}>
+    <img src={photo} alt={name} onError={()=>setErr(true)}
+      style={{width:"100%",height:"100%",objectFit:"contain",pointerEvents:"none"}}/>
   </div>;
 }
 
@@ -242,6 +239,15 @@ export default function App() {
     if(!u)db.set(K.USERS,uD);
     if(!o)db.set(K.ORDERS,oD);
     if(!g)db.set(K.GALVANIZ,gD);
+
+    // sessionStorage'daki user'ı güncel users listesiyle eşleştir
+    setUser(prev => {
+      if(!prev) return null;
+      const fresh = uD.find(u=>u.id===prev.id || u.username===prev.username);
+      if(!fresh) { try{sessionStorage.removeItem("ut_user");}catch(e){} return null; }
+      return fresh; // güncel role ve bilgilerle
+    });
+
     setLoading(false);
   }
 
@@ -438,7 +444,7 @@ function NewOrderPage({ctx,onDone}) {
 
   return <div style={{maxWidth:620}}>
     <h2 style={ss.title}>Yeni Sipariş</h2>
-    <div style={ss.card} style={{padding:28}}>
+    <div style={{...ss.card, padding:28}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:18}}>
         <div><label style={ss.lbl}>MÜŞTERİ ADI *</label><input className="inp" style={{width:"100%"}} placeholder="Müşteri..." value={customer} onChange={e=>setCustomer(e.target.value)}/></div>
         <div><label style={ss.lbl}>TERMİN TARİHİ *</label><input type="date" className="inp" style={{width:"100%"}} value={termDate} min={today()} onChange={e=>setTermDate(e.target.value)}/></div>
