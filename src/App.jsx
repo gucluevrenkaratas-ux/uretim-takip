@@ -81,6 +81,22 @@ function TermTag({termDate,status}) {
   </span>;
 }
 
+// ── Image Modal ───────────────────────────────────────────────────
+function ImageModal({photo,name,onClose}) {
+  useEffect(()=>{
+    const h=e=>{if(e.key==="Escape")onClose();};
+    window.addEventListener("keydown",h);
+    return()=>window.removeEventListener("keydown",h);
+  },[]);
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,padding:16,maxWidth:480,width:"100%",textAlign:"center"}}>
+      <img src={photo} alt={name} style={{maxWidth:"100%",maxHeight:"70vh",objectFit:"contain",borderRadius:8}}/>
+      <div style={{marginTop:10,fontSize:13,color:"#374151",fontWeight:500}}>{name}</div>
+      <button onClick={onClose} style={{marginTop:10,fontSize:12,color:"#9ca3af",background:"none",border:"none",cursor:"pointer"}}>Kapat ×</button>
+    </div>
+  </div>;
+}
+
 // ── Logo ─────────────────────────────────────────────────────────
 function LogoImg() {
   const [err,setErr]=useState(false);
