@@ -615,10 +615,93 @@ function OrderDetail({ctx,order,onBack,onUpdate}) {
           <button className="btn btn-out" onClick={()=>setConfirmClose(false)}>İptal</button>
         </div>}
         {order.status==="kapatildi"&&ctx.user.role==="admin"&&<button className="btn btn-out" onClick={reopenOrder}>↩ Yeniden Aç</button>}
+        <button className="btn btn-out" onClick={()=>printOrder(order,ctx.products)}>🖨 Yazdır</button>
         <button className="btn btn-out" onClick={onBack}>Listeye Dön</button>
       </div>
     </div>
   </div>;
+}
+
+// ── Print ─────────────────────────────────────────────────────────
+function printOrder(order, products) {
+  const items = (order.items||[]).map(it=>{
+    const p = products.find(p=>p.id===it.productId);
+    return p ? `<tr><td>[${p.code}]</td><td>${p.name}</td><td>${it.qty} ${p.unit}</td></tr>` : "";
+  }).join("");
+
+  const palets = (order.palets||[]).map((pal,i)=>{
+    const rows = (pal.items||[]).map(it=>`<li>${it.name}${it.qty?` × ${it.qty} ${it.unit||""}`:""}</li>`).join("");
+    return `<div class="palet"><b>${pal.label||`${i+1}. Palet`}</b><ul>${rows||"<li>—</li>"}</ul></div>`;
+  }).join("");
+
+  const prog = (order.progressLog||[]).map(e=>`<li>${fmtDate(e.date)} ${e.time||""} · <b>${e.user}</b>: ${e.text}</li>`).join("");
+  const ship = (order.shipLog||[]).map(e=>`<li>${fmtDate(e.date)} ${e.time||""} · <b>${e.user}</b>: ${e.text}</li>`).join("");
+
+  const html = `<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
+  <title>${order.orderNo}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px;}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #111;}
+    .logo{font-size:18px;font-weight:bold;}
+    .order-no{font-size:22px;font-weight:bold;color:#1d4ed8;font-family:monospace;}
+    .meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+    .meta-item label{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:2px;}
+    .meta-item span{font-weight:600;font-size:13px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px;}
+    th{background:#f3f4f6;text-align:left;padding:7px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e5e7eb;}
+    td{padding:7px 10px;border-bottom:1px solid #f3f4f6;}
+    .section{margin-bottom:16px;}
+    .section h3{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;}
+    .note{background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;font-size:12px;}
+    .palet{margin-bottom:12px;}
+    .palet b{font-size:13px;color:#9a3412;}
+    .palet ul{margin:6px 0 0 18px;}
+    .palet li{margin-bottom:3px;}
+    ul{margin-left:18px;}
+    li{margin-bottom:3px;}
+    .status{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${order.status==="kapatildi"?"#f3f4f6":"#dbeafe"};color:${order.status==="kapatildi"?"#6b7280":"#1d4ed8"};}
+    .footer{margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:right;}
+    @media print{body{padding:12px;}button{display:none;}}
+  </style>
+  </head><body>
+  <div class="header">
+    <div>
+      <div class="logo">◈ ÜRETİM TAKİP</div>
+      <div style="font-size:11px;color:#888;margin-top:2px;">Sipariş Formu</div>
+    </div>
+    <div style="text-align:right">
+      <div class="order-no">${order.orderNo}</div>
+      <div class="status">${order.status==="kapatildi"?"✓ Kapatıldı":"Aktif"}</div>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-item"><label>Müşteri</label><span>${order.customerName}</span></div>
+    <div class="meta-item"><label>Termin Tarihi</label><span>${fmtDate(order.termDate)}</span></div>
+    <div class="meta-item"><label>Oluşturma</label><span>${fmtDate(order.createdAt)} · ${order.createdBy}</span></div>
+    ${order.status==="kapatildi"?`<div class="meta-item"><label>Kapatıldı</label><span>${fmtDate(order.closedAt)} · ${order.closedBy}</span></div>`:""}
+  </div>
+
+  <div class="section">
+    <h3>Ürünler</h3>
+    <table><thead><tr><th>Kod</th><th>Ürün Adı</th><th>Miktar</th></tr></thead>
+    <tbody>${items}</tbody></table>
+  </div>
+
+  ${order.notes?`<div class="section"><h3>Sipariş Notu</h3><div class="note">${order.notes}</div></div>`:""}
+
+  ${(order.palets||[]).length?`<div class="section"><h3>Paletleme Bilgisi</h3>${palets}</div>`:""}
+
+  ${prog?`<div class="section"><h3>İlerleme Durumu</h3><ul>${prog}</ul></div>`:""}
+  ${ship?`<div class="section"><h3>Sevkiyat Bilgisi</h3><ul>${ship}</ul></div>`:""}
+
+  <div class="footer">Yazdırma: ${new Date().toLocaleDateString("tr-TR")} ${new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}</div>
+  <script>window.onload=()=>{window.print();}</script>
+  </body></html>`;
+
+  const w = window.open("","_blank","width=800,height=900");
+  if(w){ w.document.write(html); w.document.close(); }
 }
 
 // ── Palet Section ─────────────────────────────────────────────────
