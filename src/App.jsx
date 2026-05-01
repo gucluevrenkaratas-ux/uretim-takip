@@ -1,16 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react"
+import { db } from "./db.js"
 
 const K = { ORDERS:"v3_orders", PRODUCTS:"v3_products", USERS:"v3_users", GALVANIZ:"v3_galvaniz" };
 
-const db = {
-  async get(key) {
-    try { const r = await window.storage.get(key,true); return r?JSON.parse(r.value):null; }
-    catch(e) { return null; }
-  },
-  async set(key,val) {
-    try { await window.storage.set(key,JSON.stringify(val),true); } catch(e) {}
-  }
-};
 
 const SEED_USERS = [
   {id:"u1",username:"admin", password:"admin123",name:"Yönetici",    role:"admin"},
@@ -89,34 +81,18 @@ function TermTag({termDate,status}) {
   </span>;
 }
 
-// ── Logo ──────────────────────────────────────────────────────────
-const LOGO_URL = "https://www.temhamakine.com/images/logo2020.png";
-const LOGO_PROXY = "https://wsrv.nl/?url=www.temhamakine.com/images/logo2020.png&h=36&fit=contain&bg=transparent";
-
-function LogoImg() {
-  const [loaded, setLoaded] = useState(false);
-  const [err,    setErr]    = useState(false);
-  if (err) return null;
-  return <>
-    <img src={LOGO_PROXY} alt="Logo" onLoad={()=>setLoaded(true)} onError={()=>setErr(true)}
-      style={{height:36,objectFit:"contain",display:loaded?"block":"none"}} />
-    {!loaded && <div style={{width:36,height:36}}/>}
-  </>;
-}
-
 // ── ProductThumb ─────────────────────────────────────────────────
 function ProductThumb({photo,name,size=36,onClick}) {
   const [loaded,setLoaded]=useState(false);
   const [err,setErr]=useState(false);
   const box={width:size,height:size,borderRadius:6,flexShrink:0,border:"1px solid #e5e7eb",cursor:onClick?"zoom-in":"default"};
-  const handleClick = onClick ? (e=>{e.stopPropagation();onClick();}) : undefined;
-  if(!photo) return <div style={{...box,background:"#f3f4f6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.4,color:"#d1d5db"}} onClick={handleClick}>📦</div>;
+  const hClick=onClick?(e=>{e.stopPropagation();onClick();}):undefined;
+  if(!photo) return <div style={{...box,background:"#f3f4f6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.4,color:"#d1d5db"}} onClick={hClick}>📦</div>;
   const proxy="https://wsrv.nl/?url="+photo.replace(/^https?:\/\//,"")+"&w=120&h=120&fit=contain&bg=white";
-  return <div style={{...box,position:"relative"}} onClick={handleClick}>
+  return <div style={{...box,position:"relative"}} onClick={hClick}>
     <img src={proxy} alt={name} onLoad={()=>setLoaded(true)} onError={()=>setErr(true)}
       style={{...box,objectFit:"contain",background:"#fff",display:loaded?"block":"none",border:"none",pointerEvents:"none"}}/>
-    {!loaded && <a href={photo} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}
-      style={{...box,background:"#eff6ff",border:"1px solid #bfdbfe",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.32,textDecoration:"none",color:"#3b82f6"}}>🔗</a>}
+    {!loaded && !err && <div style={{...box,background:"#eff6ff",border:"1px solid #bfdbfe",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.32,color:"#3b82f6"}}>🔗</div>}
   </div>;
 }
 
@@ -238,7 +214,10 @@ function ProductPicker({products,onSelect,onManual}) {
 
 // ── App ───────────────────────────────────────────────────────────
 export default function App() {
-  const [user,setUser]=useState(null);
+  // sessionStorage: refresh'te çıkış yapmasın, sekme kapanınca temizlensin
+  const [user,setUser]=useState(()=>{
+    try { const u=sessionStorage.getItem("ut_user"); return u?JSON.parse(u):null; } catch(e){return null;}
+  });
   const [page,setPage]=useState("orders");
   const [orders,setOrders]=useState([]);
   const [products,setProducts]=useState([]);
@@ -247,6 +226,7 @@ export default function App() {
   const [loading,setLoading]=useState(true);
   const [toast,setToast]=useState(null);
   const [detail,setDetail]=useState(null);
+  const [zoomPhoto,setZoomPhoto]=useState(null); // App seviyesinde — her sayfadan erişilir
 
   useEffect(()=>{init();},[]);
 
@@ -271,10 +251,19 @@ export default function App() {
   const saveUsers    =async v=>{setUsers(v);    await db.set(K.USERS,v);};
   const saveGalvaniz =async v=>{setGalvaniz(v); await db.set(K.GALVANIZ,v);};
 
-  const ctx={user,orders,products,users,galvaniz,saveOrders,saveProducts,saveUsers,saveGalvaniz,showToast};
+  function login(u) {
+    try { sessionStorage.setItem("ut_user", JSON.stringify(u)); } catch(e){}
+    setUser(u); setPage("orders");
+  }
+  function logout() {
+    try { sessionStorage.removeItem("ut_user"); } catch(e){}
+    setUser(null);
+  }
+
+  const ctx={user,orders,products,users,galvaniz,saveOrders,saveProducts,saveUsers,saveGalvaniz,showToast,setZoomPhoto};
 
   if(loading) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f9fafb"}}><style>{CSS}</style><div style={{fontSize:13,color:"#9ca3af",letterSpacing:2}}>YÜKLENİYOR...</div></div>;
-  if(!user)   return <LoginPage users={users} onLogin={u=>{setUser(u);setPage("orders");}}/>;
+  if(!user)   return <LoginPage users={users} onLogin={login}/>;
 
   const tabs=[
     {key:"orders",   label:"Siparişler"},
@@ -285,34 +274,30 @@ export default function App() {
 
   return <div style={{minHeight:"100vh",background:"#f9fafb",fontFamily:"inherit"}}>
     <style>{CSS}</style>
+    <style>{`.hidesb::-webkit-scrollbar{display:none}`}</style>
+
+    {/* Fotoğraf zoom — App seviyesinde, her sayfadan çalışır */}
+    {zoomPhoto && <ImageModal photo={zoomPhoto.photo} name={zoomPhoto.name} onClose={()=>setZoomPhoto(null)}/>}
 
     {/* Üst bar: logo + kullanıcı */}
     <header style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <LogoImg />
+        <LogoImg/>
         <div style={{fontSize:13,fontWeight:700,color:"#111827",letterSpacing:.3}}>ÜRETİM TAKİP</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <span style={{fontSize:11,color:"#6b7280"}}>{user.name.split(" ")[0]}</span>
-        <button onClick={()=>setUser(null)} style={{fontSize:11,color:"#9ca3af",background:"none",border:"none",cursor:"pointer",padding:"4px 8px"}}>Çıkış</button>
+        <button onClick={logout} style={{fontSize:11,color:"#9ca3af",background:"none",border:"none",cursor:"pointer",padding:"4px 8px"}}>Çıkış</button>
       </div>
     </header>
 
-    {/* Alt nav: sekmeler */}
-    <nav style={{background:"#fff",borderBottom:"1px solid #e5e7eb",display:"flex",overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",position:"sticky",top:52,zIndex:99}}>
-      <style>{`.hidesb::-webkit-scrollbar{display:none}`}</style>
+    {/* Sekmeler — yatay kaydırmalı */}
+    <nav style={{background:"#fff",borderBottom:"1px solid #e5e7eb",overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",position:"sticky",top:52,zIndex:99}}>
       <div className="hidesb" style={{display:"flex",minWidth:"max-content",padding:"0 8px",gap:2}}>
-        {tabs.map(t=>(
-          <button key={t.key}
-            onClick={()=>{setPage(t.key);setDetail(null);}}
-            style={{
-              padding:"10px 14px", fontSize:12, fontWeight: page===t.key?700:400,
-              border:"none", background:"none", cursor:"pointer", whiteSpace:"nowrap",
-              color: page===t.key?"#2563eb":"#6b7280",
-              borderBottom: page===t.key?"2.5px solid #2563eb":"2.5px solid transparent",
-              fontFamily:"inherit", transition:"all .15s"
-            }}>{t.label}</button>
-        ))}
+        {tabs.map(t=><button key={t.key} onClick={()=>{setPage(t.key);setDetail(null);}}
+          style={{padding:"10px 14px",fontSize:12,fontWeight:page===t.key?700:400,border:"none",background:"none",cursor:"pointer",whiteSpace:"nowrap",
+            color:page===t.key?"#2563eb":"#6b7280",borderBottom:page===t.key?"2.5px solid #2563eb":"2.5px solid transparent",
+            fontFamily:"inherit",transition:"all .15s"}}>{t.label}</button>)}
       </div>
     </nav>
 
@@ -352,7 +337,6 @@ function OrdersPage({ctx,onDetail}) {
   const [status,setStatus]=useState("aktif");
   const [search,setSearch]=useState("");
   const [sortBy,setSortBy]=useState("term");
-  const [zoomPhoto,setZoomPhoto]=useState(null); // {photo, name}
 
   const list=ctx.orders
     .filter(o=>status==="hepsi"||o.status===status)
@@ -377,85 +361,48 @@ function OrdersPage({ctx,onDetail}) {
   }
 
   return <div>
-    {zoomPhoto && <ImageModal photo={zoomPhoto.photo} name={zoomPhoto.name} onClose={()=>setZoomPhoto(null)}/>}
-    <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+    <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
       {[{label:"Aktif",val:cnt.aktif,c:"#2563eb",bg:"#eff6ff"},{label:"Geciken",val:cnt.geciken,c:"#dc2626",bg:"#fef2f2"},{label:"Kapatılan",val:cnt.kapatildi,c:"#6b7280",bg:"#f9fafb"},{label:"Toplam",val:ctx.orders.length,c:"#374151",bg:"#f3f4f6"}].map(s=>
-        <div key={s.label} style={{background:s.bg,border:`1px solid ${s.c}22`,borderRadius:10,padding:"12px 16px",minWidth:80,flex:1}}>
-          <div style={{fontSize:26,fontWeight:700,color:s.c,lineHeight:1}}>{s.val}</div>
-          <div style={{fontSize:10,color:"#9ca3af",marginTop:4,letterSpacing:.5}}>{s.label.toUpperCase()}</div>
+        <div key={s.label} style={{background:s.bg,border:`1px solid ${s.c}22`,borderRadius:10,padding:"14px 20px",minWidth:110}}>
+          <div style={{fontSize:28,fontWeight:700,color:s.c,lineHeight:1}}>{s.val}</div>
+          <div style={{fontSize:11,color:"#9ca3af",marginTop:4,letterSpacing:.5}}>{s.label.toUpperCase()}</div>
         </div>
       )}
     </div>
 
-    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-      <div className="tabg" style={{flex:1,minWidth:200}}>
-        {[["aktif","Aktif"],["kapatildi","Kapatıldı"],["hepsi","Tümü"]].map(([v,l])=>
-          <button key={v} className={status===v?"tab-a":"tab"} style={{flex:1,textAlign:"center"}} onClick={()=>setStatus(v)}>{l}</button>)}
-      </div>
-      <input className="inp" style={{width:"100%"}} placeholder="Sipariş no / müşteri / ürün..." value={search} onChange={e=>setSearch(e.target.value)}/>
+    <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+      <div className="tabg">{[["aktif","Aktif"],["kapatildi","Kapatıldı"],["hepsi","Tümü"]].map(([v,l])=><button key={v} className={status===v?"tab-a":"tab"} onClick={()=>setStatus(v)}>{l}</button>)}</div>
+      <input className="inp" style={{width:240}} placeholder="Sipariş no / müşteri / ürün..." value={search} onChange={e=>setSearch(e.target.value)}/>
       <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#6b7280"}}>
-        <span style={{whiteSpace:"nowrap"}}>Sırala:</span>
-        <select className="inp" style={{padding:"6px 10px",flex:1}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
+        <span>Sırala:</span>
+        <select className="inp" style={{padding:"6px 10px"}} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
           <option value="term">Termin</option><option value="created">Oluşturma</option><option value="customer">Müşteri</option>
         </select>
       </div>
     </div>
 
-    {list.length===0 ? <div style={ss.empty}>Sipariş bulunamadı.</div> :
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {list.map(order=>(
-          <div key={order.id} style={{background:"#fff",border:"1px solid #e5e7eb",borderRadius:12,padding:"14px 16px",cursor:"pointer",transition:"box-shadow .15s"}}
-            onClick={()=>onDetail(order)}>
-            {/* Üst satır: sipariş no + durum */}
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-              <span style={{fontWeight:700,color:"#1d4ed8",fontFamily:"monospace",fontSize:13}}>{order.orderNo}</span>
-              <TermTag termDate={order.termDate} status={order.status}/>
-            </div>
-            {/* Müşteri */}
-            <div style={{fontWeight:600,fontSize:14,color:"#111827",marginBottom:6}}>{order.customerName}</div>
-            {/* Ürünler */}
-            <div style={{marginBottom:8}}>
-              {(order.items||[]).map(it=>{
-                const p=ctx.products.find(p=>p.id===it.productId);
-                return p?<div key={it.productId} style={{fontSize:12,color:"#6b7280",display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
-                  <ProductThumb photo={p.photo} name={p.name} size={22} onClick={p.photo?()=>setZoomPhoto({photo:p.photo,name:p.name}):undefined}/>
-                  <span style={{fontFamily:"monospace",color:"#9ca3af",fontSize:10}}>[{p.code}]</span>
-                  <span>{p.name}</span>
-                  <span style={{color:"#9ca3af"}}>× {it.qty} {p.unit}</span>
-                </div>:null;
-              })}
-            </div>
-            {/* Alt satır: aşama + tarih + not */}
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
-              <div onClick={e=>e.stopPropagation()}>
-                <StageChips stages={order.stages||{imalat:false,montaj:false,sevk:false}} onChange={key=>toggleStage(order,key)}/>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:11,color:"#9ca3af"}}>{fmtDate(order.createdAt)}</span>
-                {order.notes && <span style={{fontSize:11,color:"#dc2626"}}>★</span>}
-                <span style={{fontSize:11,color:"#6b7280",borderBottom:"1px solid #d1d5db"}}>Detay →</span>
-              </div>
-            </div>
-          </div>
-        ))}
+    {list.length===0?<div style={ss.empty}>Sipariş bulunamadı.</div>:
+      <div style={ss.card}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{borderBottom:"2px solid #f3f4f6"}}>
+            {["Sipariş No","Müşteri","Ürünler","Oluşturma","Aşama","Termin / Durum",""].map(h=><th key={h} style={ss.th}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {list.map(order=><tr key={order.id} style={{borderBottom:"1px solid #f9fafb",cursor:"pointer"}} className="trhov" onClick={()=>onDetail(order)}>
+              <td style={ss.td}><span style={{fontWeight:700,color:"#1d4ed8",fontFamily:"monospace",fontSize:12}}>{order.orderNo}</span></td>
+              <td style={ss.td}><span style={{fontWeight:500}}>{order.customerName}</span></td>
+              <td style={ss.td}>{(order.items||[]).map(it=>{const p=ctx.products.find(p=>p.id===it.productId);return p?<div key={it.productId} style={{fontSize:12,marginBottom:4,display:"flex",alignItems:"center",gap:7}}>
+                <ProductThumb photo={p.photo} name={p.name} size={26} onClick={p.photo?()=>ctx.setZoomPhoto({photo:p.photo,name:p.name}):undefined}/>
+                <div><span style={{fontFamily:"monospace",color:"#6b7280",fontSize:10}}>[{p.code}]</span> {p.name} <span style={{color:"#9ca3af"}}>× {it.qty} {p.unit}</span></div>
+              </div>:null;})}</td>
+              <td style={ss.td}><span style={{fontSize:12,color:"#9ca3af"}}>{fmtDate(order.createdAt)}</span><div style={{fontSize:11,color:"#d1d5db"}}>{order.createdBy}</div></td>
+              <td style={ss.td} onClick={e=>e.stopPropagation()}><StageChips stages={order.stages||{imalat:false,montaj:false,sevk:false}} onChange={key=>toggleStage(order,key)}/></td>
+              <td style={ss.td}><TermTag termDate={order.termDate} status={order.status}/>{order.status==="kapatildi"&&<div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>{fmtDate(order.closedAt)}</div>}</td>
+              <td style={{...ss.td,textAlign:"right"}}><span style={{fontSize:12,color:"#6b7280",borderBottom:"1px solid #d1d5db"}}>Detay →</span>{order.notes&&<div style={{fontSize:11,color:"#dc2626",marginTop:3}}>★ not var</div>}</td>
+            </tr>)}
+          </tbody>
+        </table>
       </div>}
-  </div>;
-}
-
-// ── Image Modal ───────────────────────────────────────────────────
-function ImageModal({photo,name,onClose}) {
-  useEffect(()=>{
-    const h=e=>{if(e.key==="Escape")onClose();};
-    window.addEventListener("keydown",h);
-    return()=>window.removeEventListener("keydown",h);
-  },[]);
-  const proxy="https://wsrv.nl/?url="+photo.replace(/^https?:\/\//,"")+"&w=600&fit=contain&bg=white";
-  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,padding:16,maxWidth:500,width:"100%",textAlign:"center"}}>
-      <img src={proxy} alt={name} style={{maxWidth:"100%",maxHeight:"70vh",objectFit:"contain",borderRadius:8}}/>
-      <div style={{marginTop:10,fontSize:13,color:"#374151",fontWeight:500}}>{name}</div>
-      <button onClick={onClose} style={{marginTop:10,fontSize:12,color:"#9ca3af",background:"none",border:"none",cursor:"pointer"}}>Kapat ×</button>
-    </div>
   </div>;
 }
 
@@ -506,46 +453,15 @@ function NewOrderPage({ctx,onDone}) {
         </div>
         {items.map((item,i)=>{
           const sel=ctx.products.find(p=>p.id===item.productId);
-          return <div key={i} style={{marginBottom:10,padding:"10px 12px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8}}>
-            {sel ? (
-              /* Seçili ürün — değiştirilebilir */
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                <ProductThumb photo={sel.photo} name={sel.name} size={36}/>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:10,fontFamily:"monospace",color:"#6b7280"}}>[{sel.code}]</div>
-                  <div style={{fontSize:13,fontWeight:600,color:"#111827"}}>{sel.name}</div>
-                </div>
-                <button onClick={()=>{updItem(i,"productId","");const n=[...codes];n[i]="";setCodes(n);}}
-                  style={{fontSize:11,color:"#6b7280",background:"#fff",border:"1px solid #e5e7eb",borderRadius:5,padding:"3px 9px",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
-                  ✎ değiştir
-                </button>
-              </div>
-            ) : (
-              /* Ürün seçimi */
-              <div style={{marginBottom:8}}>
-                <div style={{fontSize:10,color:"#9ca3af",marginBottom:5}}>ÜRÜN SEÇ</div>
-                <input className="inp" style={{width:"100%",fontFamily:"monospace",fontSize:12,marginBottom:6}} placeholder="Kod yaz veya aşağıdan seç... (CR.0107)"
-                  value={codes[i]||""} onChange={e=>pickByCode(i,e.target.value)} list={`pc-${i}`} autoFocus={i===items.length-1}/>
-                <datalist id={`pc-${i}`}>{ctx.products.map(p=><option key={p.id} value={p.code}>{p.name}</option>)}</datalist>
-                {/* Ürün listesi hızlı seçim */}
-                <div style={{maxHeight:120,overflowY:"auto",display:"flex",flexDirection:"column",gap:3}}>
-                  {ctx.products.filter(p=>!codes[i]||p.code.toLowerCase().includes((codes[i]||"").toLowerCase())||p.name.toLowerCase().includes((codes[i]||"").toLowerCase())).map(p=>(
-                    <div key={p.id} onClick={()=>{updItem(i,"productId",p.id);const n=[...codes];n[i]=p.code;setCodes(n);}}
-                      style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,cursor:"pointer",background:"#fff",border:"1px solid #e5e7eb"}}>
-                      <ProductThumb photo={p.photo} name={p.name} size={24}/>
-                      <span style={{fontFamily:"monospace",color:"#6b7280",fontSize:10,minWidth:55}}>{p.code}</span>
-                      <span style={{fontSize:12,color:"#111827"}}>{p.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <div style={{fontSize:10,color:"#9ca3af",whiteSpace:"nowrap"}}>MİKTAR</div>
-              <input type="number" className="inp" min="1" placeholder="0" style={{width:90}} value={item.qty} onChange={e=>updItem(i,"qty",e.target.value)}/>
-              {sel && <span style={{fontSize:12,color:"#9ca3af"}}>{sel.unit}</span>}
-              {items.length>1 && <button onClick={()=>remItem(i)} style={{marginLeft:"auto",color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:16,padding:0}}>× Kaldır</button>}
+          return <div key={i} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 28px",gap:8,marginBottom:8,alignItems:"center"}}>
+            <input className="inp" style={{fontFamily:"monospace",fontSize:12}} placeholder="CR.0107" value={codes[i]||""}
+              onChange={e=>pickByCode(i,e.target.value)} list={`pc-${i}`}/>
+            <datalist id={`pc-${i}`}>{ctx.products.map(p=><option key={p.id} value={p.code}>{p.name}</option>)}</datalist>
+            <div style={{padding:"8px 10px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:6,fontSize:12,color:sel?"#111827":"#9ca3af"}}>
+              {sel?sel.name:<span style={{fontStyle:"italic"}}>kodu giriniz...</span>}
             </div>
+            <input type="number" className="inp" min="1" placeholder="0" value={item.qty} onChange={e=>updItem(i,"qty",e.target.value)}/>
+            {items.length>1?<button onClick={()=>remItem(i)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:18,padding:0}}>×</button>:<div/>}
           </div>;
         })}
       </div>
@@ -564,7 +480,6 @@ function NewOrderPage({ctx,onDone}) {
 function OrderDetail({ctx,order,onBack,onUpdate}) {
   const [closing,setClosing]=useState(false);
   const [confirmClose,setConfirmClose]=useState(false);
-  const [zoomPhoto,setZoomPhoto]=useState(null);
 
   async function closeOrder() {
     setClosing(true);setConfirmClose(false);
@@ -599,7 +514,6 @@ function OrderDetail({ctx,order,onBack,onUpdate}) {
   }
 
   return <div style={{maxWidth:580}}>
-    {zoomPhoto && <ImageModal photo={zoomPhoto.photo} name={zoomPhoto.name} onClose={()=>setZoomPhoto(null)}/>}
     <button style={ss.back} onClick={onBack}>← Sipariş Listesi</button>
     <div style={{...ss.card,padding:24}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22,paddingBottom:18,borderBottom:"1px solid #f3f4f6"}}>
@@ -628,7 +542,7 @@ function OrderDetail({ctx,order,onBack,onUpdate}) {
               <th style={{...ss.th,padding:"9px 14px"}}>Miktar</th>
             </tr></thead>
             <tbody>{(order.items||[]).map((it,i)=>{const p=ctx.products.find(p=>p.id===it.productId);return<tr key={i} style={{borderTop:"1px solid #f3f4f6"}}>
-              <td style={{padding:"8px 14px"}}><ProductThumb photo={p?.photo} name={p?.name||""} size={40} onClick={p?.photo?()=>setZoomPhoto({photo:p.photo,name:p.name}):undefined}/></td>
+              <td style={{padding:"8px 14px"}}><ProductThumb photo={p?.photo} name={p?.name||""} size={40} onClick={p?.photo?()=>ctx.setZoomPhoto({photo:p.photo,name:p.name}):undefined}/></td>
               <td style={{padding:"10px 14px",fontFamily:"monospace",color:"#6b7280",fontSize:12}}>[{p?.code||"?"}]</td>
               <td style={{padding:"10px 14px",fontWeight:500}}>{p?.name||"Bilinmiyor"}</td>
               <td style={{padding:"10px 14px",color:"#374151"}}>{it.qty} {p?.unit||""}</td>
