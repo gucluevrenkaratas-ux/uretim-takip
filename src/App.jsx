@@ -308,7 +308,7 @@ export default function App() {
     return()=>clearInterval(iv);
   },[user]);
 
-  const ctx={user,orders,products,users,galvaniz,saveOrders,saveProducts,saveUsers,saveGalvaniz,showToast,setZoomPhoto,saveNotif};
+  function login(u) {
     try { sessionStorage.setItem("ut_user", JSON.stringify(u)); } catch(e){}
     setUser(u); setPage("orders");
   }
@@ -317,7 +317,7 @@ export default function App() {
     setUser(null);
   }
 
-  const ctx={user,orders,products,users,galvaniz,saveOrders,saveProducts,saveUsers,saveGalvaniz,showToast,setZoomPhoto};
+  const ctx={user,orders,products,users,galvaniz,saveOrders,saveProducts,saveUsers,saveGalvaniz,showToast,setZoomPhoto,saveNotif};
 
   if(loading) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f9fafb"}}><style>{CSS}</style><div style={{fontSize:13,color:"#9ca3af",letterSpacing:2}}>YÜKLENİYOR...</div></div>;
   if(!user)   return <LoginPage users={users} onLogin={login}/>;
