@@ -6,9 +6,9 @@ const K = { ORDERS:"v3_orders", PRODUCTS:"v3_products", USERS:"v3_users", GALVAN
 
 const SEED_USERS = [
   {id:"u1",username:"Admin", password:"admin395",name:"Yönetici",    role:"admin"},
-  {id:"u2",username:"Evren",   password:"1903",    name:"Ali Kaya",    role:"user"},
-  {id:"u3",username:"İsa",  password:"2026",    name:"Ayşe Demir",  role:"user"},
-  {id:"u4",username:"Kullanıcı",password:"2026",    name:"Mehmet Çelik",role:"user"},
+  {id:"u2",username:"Evren",   password:"1903",    name:"Evren",    role:"admin"},
+  {id:"u3",username:"İsa",  password:"2026",    name:"İsa",  role:"user"},
+  {id:"u4",username:"Kullanıcı",password:"2026",    name:"Kullanıcı",role:"user"},
 
 ];
 const SEED_PRODUCTS = [
