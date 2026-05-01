@@ -1,8 +1,16 @@
-import { useState, useEffect } from "react"
-import { db } from "./db.js"
+import { useState, useEffect } from "react";
 
 const K = { ORDERS:"v3_orders", PRODUCTS:"v3_products", USERS:"v3_users", GALVANIZ:"v3_galvaniz" };
 
+const db = {
+  async get(key) {
+    try { const r = await window.storage.get(key,true); return r?JSON.parse(r.value):null; }
+    catch(e) { return null; }
+  },
+  async set(key,val) {
+    try { await window.storage.set(key,JSON.stringify(val),true); } catch(e) {}
+  }
+};
 
 const SEED_USERS = [
   {id:"u1",username:"admin", password:"admin123",name:"Yönetici",    role:"admin"},
@@ -79,6 +87,21 @@ function TermTag({termDate,status}) {
   return <span style={{background:bg,color:cl,fontSize:11,padding:"3px 10px",borderRadius:20,fontWeight:600,border:`1px solid ${cl}22`}}>
     {fmtDate(termDate)} · {d<0?`${Math.abs(d)}g geçti`:d===0?"Bugün!":`${d}g`}
   </span>;
+}
+
+// ── Logo ──────────────────────────────────────────────────────────
+const LOGO_URL = "https://www.temhamakine.com/images/logo2020.png";
+const LOGO_PROXY = "https://wsrv.nl/?url=www.temhamakine.com/images/logo2020.png&h=36&fit=contain&bg=transparent";
+
+function LogoImg() {
+  const [loaded, setLoaded] = useState(false);
+  const [err,    setErr]    = useState(false);
+  if (err) return null;
+  return <>
+    <img src={LOGO_PROXY} alt="Logo" onLoad={()=>setLoaded(true)} onError={()=>setErr(true)}
+      style={{height:36,objectFit:"contain",display:loaded?"block":"none"}} />
+    {!loaded && <div style={{width:36,height:36}}/>}
+  </>;
 }
 
 // ── ProductThumb ─────────────────────────────────────────────────
@@ -263,7 +286,10 @@ export default function App() {
     <style>{CSS}</style>
     <header style={ss.nav}>
       <div style={{display:"flex",alignItems:"center",gap:24}}>
-        <div style={{fontSize:15,fontWeight:700,color:"#111827"}}>◈ ÜRETİM TAKİP</div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <LogoImg />
+          <div style={{fontSize:15,fontWeight:700,color:"#111827"}}>◈ ÜRETİM TAKİP</div>
+        </div>
         <nav style={{display:"flex",gap:4}}>
           {tabs.map(t=><button key={t.key} className={page===t.key?"tab-a":"tab"}
             onClick={()=>{setPage(t.key);setDetail(null);}}>{t.label}</button>)}
