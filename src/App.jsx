@@ -592,6 +592,15 @@ function OrderDetail({ctx,order,onBack,onUpdate}) {
       <LogSection title="Sevkiyat Bilgisi" color="#7c3aed" bg="#f5f3ff" border="#ddd6fe"
         entries={order.shipLog||[]} currentUser={ctx.user} {...logHelper("shipLog")}/>
 
+      <PaletSection
+        palets={order.palets||[]}
+        onSave={async(palets)=>{
+          const updated={...order,palets};
+          await ctx.saveOrders(ctx.orders.map(o=>o.id===order.id?updated:o));
+          onUpdate(updated);
+        }}
+      />
+
       {order.status==="kapatildi"&&<div style={{background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,padding:"10px 14px",marginBottom:18,fontSize:12,color:"#16a34a"}}>
         ✓ Kapatıldı: {fmtDate(order.closedAt)} · {order.closedBy}
       </div>}
@@ -606,6 +615,77 @@ function OrderDetail({ctx,order,onBack,onUpdate}) {
         {order.status==="kapatildi"&&ctx.user.role==="admin"&&<button className="btn btn-out" onClick={reopenOrder}>↩ Yeniden Aç</button>}
         <button className="btn btn-out" onClick={onBack}>Listeye Dön</button>
       </div>
+    </div>
+  </div>;
+}
+
+// ── Palet Section ─────────────────────────────────────────────────
+function PaletSection({palets,onSave}) {
+  const [list,setList]=useState(palets.length?palets:[{id:genId(),label:"1. Palet",items:""}]);
+  const [editing,setEditing]=useState(false);
+  const [saving,setSaving]=useState(false);
+
+  async function save() {
+    setSaving(true);
+    await onSave(list);
+    setSaving(false);
+    setEditing(false);
+  }
+
+  const addPalet=()=>setList([...list,{id:genId(),label:`${list.length+1}. Palet`,items:""}]);
+  const remPalet=id=>{ if(list.length>1)setList(list.filter(p=>p.id!==id)); };
+  const updPalet=(id,f,v)=>setList(list.map(p=>p.id===id?{...p,[f]:v}:p));
+
+  return <div style={{marginBottom:20}}>
+    <div style={{fontSize:10,color:"#9ca3af",letterSpacing:.5,fontWeight:600,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <span>PALETLEMEBİLGİSİ</span>
+      {!editing
+        ? <button onClick={()=>setEditing(true)} style={{fontSize:10,color:"#ea580c",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>✎ Düzenle</button>
+        : <div style={{display:"flex",gap:8}}>
+            <button onClick={save} disabled={saving} style={{fontSize:10,color:"#16a34a",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>{saving?"...":"Kaydet"}</button>
+            <button onClick={()=>{setList(palets.length?palets:[{id:genId(),label:"1. Palet",items:""}]);setEditing(false);}} style={{fontSize:10,color:"#9ca3af",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit"}}>İptal</button>
+          </div>}
+    </div>
+
+    <div style={{border:"1px solid #fed7aa",borderRadius:10,overflow:"hidden",background:"#fff7ed"}}>
+      {list.map((palet,i)=>(
+        <div key={palet.id} style={{padding:"12px 14px",borderBottom:i<list.length-1?"1px solid #fed7aa":"none"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:editing?6:4}}>
+            {/* Palet başlık */}
+            <div style={{width:24,height:24,borderRadius:"50%",background:"#ea580c",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0}}>
+              {i+1}
+            </div>
+            {editing
+              ? <input className="inp" style={{flex:1,fontSize:12,fontWeight:600,padding:"4px 8px"}} value={palet.label}
+                  onChange={e=>updPalet(palet.id,"label",e.target.value)}/>
+              : <span style={{fontSize:13,fontWeight:700,color:"#9a3412"}}>{palet.label}</span>}
+            {editing&&list.length>1&&<button onClick={()=>remPalet(palet.id)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>×</button>}
+          </div>
+
+          {/* İçerik */}
+          {editing
+            ? <textarea className="inp" style={{width:"100%",fontSize:12,height:72,resize:"vertical",marginLeft:32}}
+                placeholder="Malzeme listesi... (her satıra bir malzeme)"
+                value={palet.items}
+                onChange={e=>updPalet(palet.id,"items",e.target.value)}/>
+            : palet.items
+              ? <div style={{marginLeft:32}}>
+                  {palet.items.split("\n").filter(l=>l.trim()).map((line,j)=>(
+                    <div key={j} style={{fontSize:12,color:"#7c2d12",padding:"2px 0",display:"flex",gap:6,alignItems:"flex-start"}}>
+                      <span style={{color:"#ea580c",flexShrink:0}}>→</span>
+                      <span>{line}</span>
+                    </div>
+                  ))}
+                </div>
+              : <div style={{marginLeft:32,fontSize:12,color:"#fdba74",fontStyle:"italic"}}>Henüz içerik yok</div>}
+        </div>
+      ))}
+
+      {editing&&<div style={{padding:"10px 14px",borderTop:"1px solid #fed7aa"}}>
+        <button onClick={addPalet} style={{fontSize:12,color:"#ea580c",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>
+          + Palet Ekle
+        </button>
+      </div>}
     </div>
   </div>;
 }
