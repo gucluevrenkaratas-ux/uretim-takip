@@ -322,11 +322,15 @@ export default function App() {
   if(loading) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f9fafb"}}><style>{CSS}</style><div style={{fontSize:13,color:"#9ca3af",letterSpacing:2}}>YÜKLENİYOR...</div></div>;
   if(!user)   return <LoginPage users={users} onLogin={login}/>;
 
+  const isAdmin = user.role==="admin";
+
   const tabs=[
-    {key:"orders",   label:"Siparişler"},
-    {key:"new",      label:"+ Yeni Sipariş"},
-    {key:"galvaniz", label:"Galvaniz İşlem"},
-    ...(user.role==="admin"?[{key:"admin",label:"⚙ Yönetim"}]:[]),
+    {key:"orders", label:"Siparişler"},
+    ...(isAdmin?[
+      {key:"new",      label:"+ Yeni Sipariş"},
+      {key:"galvaniz", label:"Galvaniz İşlem"},
+      {key:"admin",    label:"⚙ Yönetim"},
+    ]:[]),
   ];
 
   return <div style={{minHeight:"100vh",background:"#f9fafb",fontFamily:"inherit"}}>
@@ -387,9 +391,9 @@ export default function App() {
     <main style={{padding:"20px 16px",maxWidth:1100,margin:"0 auto"}}>
       {page==="orders"  && !detail && <OrdersPage   ctx={ctx} onDetail={o=>setDetail(o)}/>}
       {page==="orders"  &&  detail && <OrderDetail  ctx={ctx} order={ctx.orders.find(o=>o.id===detail.id)||detail} onBack={()=>setDetail(null)} onUpdate={o=>setDetail(o)}/>}
-      {page==="new"                && <NewOrderPage ctx={ctx} onDone={()=>{setPage("orders");setDetail(null);}}/>}
-      {page==="galvaniz"           && <GalvanizPage ctx={ctx}/>}
-      {page==="admin" && user.role==="admin" && <AdminPage ctx={ctx}/>}
+      {page==="new"      && isAdmin && <NewOrderPage ctx={ctx} onDone={()=>{setPage("orders");setDetail(null);}}/>}
+      {page==="galvaniz" && isAdmin && <GalvanizPage ctx={ctx}/>}
+      {page==="admin"    && isAdmin && <AdminPage ctx={ctx}/>}
     </main>
   </div>;
 }
