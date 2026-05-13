@@ -1158,7 +1158,7 @@ function ElbisePage({ctx}) {
         <tbody>
           {data.rows.length===0 && (
             <tr><td colSpan={fixedCols.length+(data.cols.length)+1} style={{padding:30,textAlign:"center",color:"#9ca3af"}}>
-              {editing ? "`Satır eklemek için + Satır Ekle butonunu kullanın.` : "Henüz kayıt yok."}
+              {editing ? "Satır eklemek için + Satır Ekle butonunu kullanın." : "Henüz kayıt yok."}
             </td></tr>
           )}
           {data.rows.map((row,ri)=>(
