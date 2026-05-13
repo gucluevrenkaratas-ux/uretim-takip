@@ -1070,32 +1070,73 @@ function GalvanizPage({ctx}) {
 const BEDEN_TSHIRT  = ["XS","S","M","L","XL","XXL","3XL"];
 const BEDEN_PANTOLON= ["36","38","40","42","44","46","48","50","52"];
 
-function ElbisePage({ctx}) {
-  const defRow = () => ({id:genId(), isim:"", tshirtBeden:"", tshirtAdet:"", pantalonBeden:"", pantalonAdet:"", ekstra:{}});
+function printElbise(sezon, data) {
+  const cols = data.cols||[];
+  const rows = data.rows||[];
+  const extraHeaders = cols.map(c=>`<th>${c.label}</th>`).join("");
+  const rowsHtml = rows.map((r,i)=>`
+    <tr style="background:${i%2===0?"#fff":"#f9fafb"}">
+      <td>${r.isim||"—"}</td>
+      <td style="text-align:center">${r.tshirtBeden||"—"}</td>
+      <td style="text-align:center">${r.tshirtAdet||""}</td>
+      <td style="text-align:center">${r.pantalonBeden||"—"}</td>
+      <td style="text-align:center">${r.pantalonAdet||""}</td>
+      ${cols.map(c=>`<td style="text-align:center">${r.ekstra?.[c.id]||""}</td>`).join("")}
+    </tr>`).join("");
 
-  // data: { cols:[{id,label}], rows:[{id,isim,tshirtBeden,tshirtAdet,pantalonBeden,pantalonAdet,ekstra:{colId:val}}] }
-  const [data,setData]     = useState(null);
-  const [editing,setEditing]= useState(false);
-  const [saving,setSaving]  = useState(false);
+  const html = `<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
+  <title>İş Elbisesi — ${sezon}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:12px;padding:24px;color:#111;}
+    h1{font-size:18px;margin-bottom:4px;} .sub{color:#888;font-size:12px;margin-bottom:20px;}
+    table{width:100%;border-collapse:collapse;}
+    th{background:#1e293b;color:#fff;padding:8px 10px;text-align:left;font-size:10px;letter-spacing:.5px;}
+    td{padding:7px 10px;border-bottom:1px solid #f0f0f0;}
+    .footer{margin-top:20px;font-size:10px;color:#aaa;text-align:right;}
+    @media print{.footer{position:fixed;bottom:10px;right:10px;}}
+  </style></head><body>
+  <h1>◈ İş Elbisesi Listesi</h1>
+  <div class="sub">${sezon} · ${rows.length} kişi · ${new Date().toLocaleDateString("tr-TR")}</div>
+  <table>
+    <thead><tr><th>İsim</th><th>T-Shirt Beden</th><th>Adet</th><th>Pantolon Beden</th><th>Adet</th>${extraHeaders}</tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <div class="footer">Yazdırma: ${new Date().toLocaleString("tr-TR")}</div>
+  <script>window.onload=()=>window.print();</script>
+  </body></html>`;
+  const w=window.open("","_blank","width=900,height=700");
+  if(w){w.document.write(html);w.document.close();}
+}
+
+function ElbisePage({ctx}) {
+  const defRow = () => ({id:genId(),isim:"",tshirtBeden:"",tshirtAdet:"",pantalonBeden:"",pantalonAdet:"",ekstra:{}});
+  const defData = () => ({cols:[],rows:[]});
+
+  const [sezon,  setSezon]   = useState("yazlik"); // yazlik | kislik
+  const [allData,setAllData] = useState(null); // {yazlik:{cols,rows}, kislik:{cols,rows}}
+  const [editing,setEditing] = useState(false);
+  const [saving, setSaving]  = useState(false);
 
   useEffect(()=>{ load(); },[]);
 
   async function load() {
     const d = await db.get(K.ELBISE);
-    setData(d || { cols:[], rows:[] });
+    setAllData(d || {yazlik:defData(), kislik:defData()});
   }
 
-  async function save(newData) {
+  async function save() {
     setSaving(true);
-    await db.set(K.ELBISE, newData);
-    setData(newData);
+    await db.set(K.ELBISE, allData);
     setSaving(false);
     setEditing(false);
   }
 
-  if(!data) return <div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Yükleniyor...</div>;
+  if(!allData) return <div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Yükleniyor...</div>;
 
-  const addRow    = () => setData({...data, rows:[...data.rows, {id:genId(),isim:"",tshirtBeden:"",tshirtAdet:"",pantalonBeden:"",pantalonAdet:"",ekstra:{}}]});
+  const data = allData[sezon] || defData();
+  const setData = (d) => setAllData({...allData, [sezon]:d});
+
+  const addRow    = () => setData({...data, rows:[...data.rows, defRow()]});
   const remRow    = id => setData({...data, rows:data.rows.filter(r=>r.id!==id)});
   const updRow    = (id,f,v) => setData({...data, rows:data.rows.map(r=>r.id===id?{...r,[f]:v}:r)});
   const updEkstra = (rowId,colId,v) => setData({...data, rows:data.rows.map(r=>r.id===rowId?{...r,ekstra:{...r.ekstra,[colId]:v}}:r)});
@@ -1103,52 +1144,64 @@ function ElbisePage({ctx}) {
   const remCol    = id => setData({...data, cols:data.cols.filter(c=>c.id!==id)});
   const updCol    = (id,v) => setData({...data, cols:data.cols.map(c=>c.id===id?{...c,label:v}:c)});
 
-  // sabit sütunlar + ekstra sütunlar
   const fixedCols = [
-    {id:"isim",          label:"İsim",             w:150, type:"text"},
-    {id:"tshirtBeden",   label:"T-Shirt Beden",    w:110, type:"beden_ts"},
-    {id:"tshirtAdet",    label:"Adet",             w:60,  type:"num"},
-    {id:"pantalonBeden", label:"Pantolon Beden",   w:120, type:"beden_p"},
-    {id:"pantalonAdet",  label:"Adet",             w:60,  type:"num"},
+    {id:"isim",          label:"İsim",           w:150},
+    {id:"tshirtBeden",   label:"T-Shirt Beden",  w:110},
+    {id:"tshirtAdet",    label:"Adet",           w:60},
+    {id:"pantalonBeden", label:"Pantolon Beden", w:120},
+    {id:"pantalonAdet",  label:"Adet",           w:60},
   ];
 
-  const thStyle = (w) => ({
-    padding:"9px 10px", fontSize:10, color:"#fff", fontWeight:600, letterSpacing:.5,
-    textAlign:"left", borderRight:"1px solid #334155", width:w, minWidth:w, background:"#1e293b"
-  });
-  const tdStyle = {padding:"6px 8px", borderRight:"1px solid #e5e7eb", fontSize:12, verticalAlign:"middle"};
+  const thS = (w) => ({padding:"9px 10px",fontSize:10,color:"#fff",fontWeight:600,letterSpacing:.5,textAlign:"left",borderRight:"1px solid #334155",width:w,minWidth:w,background: sezon==="yazlik"?"#b45309":"#1e40af"});
+  const tdS = {padding:"6px 8px",borderRight:"1px solid #e5e7eb",fontSize:12,verticalAlign:"middle"};
   const inp = (val,onChange,style={}) => <input className="inp" style={{width:"100%",fontSize:12,padding:"4px 6px",...style}} value={val||""} onChange={onChange}/>;
-  const sel = (val,onChange,opts) => <select className="inp" style={{width:"100%",fontSize:12,padding:"4px 6px",background:"transparent"}} value={val||""} onChange={onChange}>
+  const sel = (val,onChange,opts) => <select className="inp" style={{width:"100%",fontSize:12,padding:"4px 6px"}} value={val||""} onChange={onChange}>
     <option value="">—</option>{opts.map(o=><option key={o}>{o}</option>)}
   </select>;
 
   return <div>
+    {/* Başlık + kontroller */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
-      <h2 style={ss.title}>İş Elbisesi Listesi</h2>
-      <div style={{display:"flex",gap:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:14}}>
+        <h2 style={{...ss.title,marginBottom:0}}>İş Elbisesi</h2>
+        {/* Yazlık / Kışlık toggle */}
+        <div className="tabg">
+          <button className={sezon==="yazlik"?"tab-a":"tab"}
+            style={{background:sezon==="yazlik"?"#f59e0b":undefined,color:sezon==="yazlik"?"#fff":undefined}}
+            onClick={()=>{setEditing(false);setSezon("yazlik");}}>☀ Yazlık</button>
+          <button className={sezon==="kislik"?"tab-a":"tab"}
+            style={{background:sezon==="kislik"?"#2563eb":undefined,color:sezon==="kislik"?"#fff":undefined}}
+            onClick={()=>{setEditing(false);setSezon("kislik");}}>❄ Kışlık</button>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {!editing
-          ? <button className="btn btn-dark" onClick={()=>setEditing(true)}>✎ Düzenle</button>
+          ? <>
+              <button className="btn btn-dark" onClick={()=>setEditing(true)}>✎ Düzenle</button>
+              <button className="btn btn-out" onClick={()=>printElbise(sezon==="yazlik"?"Yazlık":"Kışlık", data)}>🖨 Yazdır</button>
+            </>
           : <>
-              <button className="btn btn-dark" onClick={()=>save(data)} disabled={saving}>{saving?"...":"💾 Kaydet"}</button>
+              <button className="btn btn-dark" onClick={save} disabled={saving}>{saving?"...":"💾 Kaydet"}</button>
               <button className="btn btn-out" onClick={addCol}>+ Sütun Ekle</button>
               <button className="btn btn-out" onClick={addRow}>+ Satır Ekle</button>
-              <button className="btn btn-out" onClick={load}>İptal</button>
+              <button className="btn btn-out" onClick={()=>{load();setEditing(false);}}>İptal</button>
             </>}
       </div>
     </div>
 
+    {/* Tablo */}
     <div style={{overflowX:"auto",borderRadius:10,border:"1.5px solid #d1d5db",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
       <table style={{borderCollapse:"collapse",fontSize:12,minWidth:"100%"}}>
         <thead>
           <tr>
-            {editing && <th style={{...thStyle(36), textAlign:"center"}}></th>}
-            {fixedCols.map(c=><th key={c.id} style={thStyle(c.w)}>{c.label}</th>)}
+            {editing && <th style={{...thS(36),textAlign:"center"}}></th>}
+            {fixedCols.map(c=><th key={c.id} style={thS(c.w)}>{c.label}</th>)}
             {data.cols.map(c=>(
-              <th key={c.id} style={{...thStyle(120)}}>
+              <th key={c.id} style={thS(120)}>
                 {editing
                   ? <div style={{display:"flex",gap:4,alignItems:"center"}}>
                       <input style={{background:"transparent",border:"none",color:"#fff",fontSize:10,fontWeight:600,width:"80%",outline:"none"}} value={c.label} onChange={e=>updCol(c.id,e.target.value)}/>
-                      <button onClick={()=>remCol(c.id)} style={{color:"#fca5a5",background:"none",border:"none",cursor:"pointer",fontSize:14,padding:0,lineHeight:1}}>×</button>
+                      <button onClick={()=>remCol(c.id)} style={{color:"#fca5a5",background:"none",border:"none",cursor:"pointer",fontSize:14,padding:0}}>×</button>
                     </div>
                   : c.label}
               </th>
@@ -1157,22 +1210,22 @@ function ElbisePage({ctx}) {
         </thead>
         <tbody>
           {data.rows.length===0 && (
-            <tr><td colSpan={fixedCols.length+(data.cols.length)+1} style={{padding:30,textAlign:"center",color:"#9ca3af"}}>
+            <tr><td colSpan={fixedCols.length+data.cols.length+(editing?1:0)} style={{padding:30,textAlign:"center",color:"#9ca3af"}}>
               {editing ? "Satır eklemek için + Satır Ekle butonunu kullanın." : "Henüz kayıt yok."}
             </td></tr>
           )}
           {data.rows.map((row,ri)=>(
             <tr key={row.id} style={{borderBottom:"1px solid #f0ede8",background:ri%2===0?"#fff":"#fafafa"}}>
-              {editing && <td style={{...tdStyle,textAlign:"center",width:36}}>
-                <button onClick={()=>remRow(row.id)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>×</button>
+              {editing && <td style={{...tdS,textAlign:"center",width:36}}>
+                <button onClick={()=>remRow(row.id)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:16,padding:0}}>×</button>
               </td>}
-              <td style={tdStyle}>{editing?inp(row.isim,e=>updRow(row.id,"isim",e.target.value),{fontWeight:600}):row.isim||"—"}</td>
-              <td style={tdStyle}>{editing?sel(row.tshirtBeden,e=>updRow(row.id,"tshirtBeden",e.target.value),BEDEN_TSHIRT):<span style={{fontWeight:500}}>{row.tshirtBeden||"—"}</span>}</td>
-              <td style={tdStyle}>{editing?inp(row.tshirtAdet,e=>updRow(row.id,"tshirtAdet",e.target.value)):row.tshirtAdet||""}</td>
-              <td style={tdStyle}>{editing?sel(row.pantalonBeden,e=>updRow(row.id,"pantalonBeden",e.target.value),BEDEN_PANTOLON):<span style={{fontWeight:500}}>{row.pantalonBeden||"—"}</span>}</td>
-              <td style={tdStyle}>{editing?inp(row.pantalonAdet,e=>updRow(row.id,"pantalonAdet",e.target.value)):row.pantalonAdet||""}</td>
+              <td style={tdS}>{editing?inp(row.isim,e=>updRow(row.id,"isim",e.target.value),{fontWeight:600}):row.isim||"—"}</td>
+              <td style={tdS}>{editing?sel(row.tshirtBeden,e=>updRow(row.id,"tshirtBeden",e.target.value),BEDEN_TSHIRT):<span style={{fontWeight:500}}>{row.tshirtBeden||"—"}</span>}</td>
+              <td style={{...tdS,textAlign:"center"}}>{editing?inp(row.tshirtAdet,e=>updRow(row.id,"tshirtAdet",e.target.value)):row.tshirtAdet||""}</td>
+              <td style={tdS}>{editing?sel(row.pantalonBeden,e=>updRow(row.id,"pantalonBeden",e.target.value),BEDEN_PANTOLON):<span style={{fontWeight:500}}>{row.pantalonBeden||"—"}</span>}</td>
+              <td style={{...tdS,textAlign:"center"}}>{editing?inp(row.pantalonAdet,e=>updRow(row.id,"pantalonAdet",e.target.value)):row.pantalonAdet||""}</td>
               {data.cols.map(c=>(
-                <td key={c.id} style={tdStyle}>
+                <td key={c.id} style={{...tdS,textAlign:"center"}}>
                   {editing?inp(row.ekstra?.[c.id]||"",e=>updEkstra(row.id,c.id,e.target.value)):row.ekstra?.[c.id]||""}
                 </td>
               ))}
@@ -1183,7 +1236,7 @@ function ElbisePage({ctx}) {
     </div>
 
     {!editing && data.rows.length>0 && (
-      <div style={{marginTop:10,fontSize:11,color:"#9ca3af"}}>{data.rows.length} kayıt</div>
+      <div style={{marginTop:10,fontSize:11,color:"#9ca3af"}}>{data.rows.length} kişi</div>
     )}
   </div>;
 }
