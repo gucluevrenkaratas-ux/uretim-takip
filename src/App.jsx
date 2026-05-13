@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { db } from "./db.js"
 
-const K = { ORDERS:"v3_orders", PRODUCTS:"v3_products", USERS:"v3_users", GALVANIZ:"v3_galvaniz", NOTIFS:"v3_notifs" };
+const K = { ORDERS:"v3_orders", PRODUCTS:"v3_products", USERS:"v3_users", GALVANIZ:"v3_galvaniz", NOTIFS:"v3_notifs", ELBISE:"v3_elbise" };
 
 
 const SEED_USERS = [
@@ -329,6 +329,7 @@ export default function App() {
     ...(isAdmin?[
       {key:"new",      label:"+ Yeni Sipariş"},
       {key:"galvaniz", label:"Galvaniz İşlem"},
+      {key:"elbise",   label:"İş Elbisesi"},
       {key:"admin",    label:"⚙ Yönetim"},
     ]:[]),
   ];
@@ -393,6 +394,7 @@ export default function App() {
       {page==="orders"  &&  detail && <OrderDetail  ctx={ctx} order={ctx.orders.find(o=>o.id===detail.id)||detail} onBack={()=>setDetail(null)} onUpdate={o=>setDetail(o)}/>}
       {page==="new"      && isAdmin && <NewOrderPage ctx={ctx} onDone={()=>{setPage("orders");setDetail(null);}}/>}
       {page==="galvaniz" && isAdmin && <GalvanizPage ctx={ctx}/>}
+      {page==="elbise"   && isAdmin && <ElbisePage ctx={ctx}/>}
       {page==="admin"    && isAdmin && <AdminPage ctx={ctx}/>}
     </main>
   </div>;
@@ -1061,6 +1063,128 @@ function GalvanizPage({ctx}) {
         })}
       </div>
     </div>}
+  </div>;
+}
+
+// ── Elbise Page ───────────────────────────────────────────────────
+const BEDEN_TSHIRT  = ["XS","S","M","L","XL","XXL","3XL"];
+const BEDEN_PANTOLON= ["36","38","40","42","44","46","48","50","52"];
+
+function ElbisePage({ctx}) {
+  const defRow = () => ({id:genId(), isim:"", tshirtBeden:"", tshirtAdet:"", pantalonBeden:"", pantalonAdet:"", ekstra:{}});
+
+  // data: { cols:[{id,label}], rows:[{id,isim,tshirtBeden,tshirtAdet,pantalonBeden,pantalonAdet,ekstra:{colId:val}}] }
+  const [data,setData]     = useState(null);
+  const [editing,setEditing]= useState(false);
+  const [saving,setSaving]  = useState(false);
+
+  useEffect(()=>{ load(); },[]);
+
+  async function load() {
+    const d = await db.get(K.ELBISE);
+    setData(d || { cols:[], rows:[] });
+  }
+
+  async function save(newData) {
+    setSaving(true);
+    await db.set(K.ELBISE, newData);
+    setData(newData);
+    setSaving(false);
+    setEditing(false);
+  }
+
+  if(!data) return <div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Yükleniyor...</div>;
+
+  const addRow    = () => setData({...data, rows:[...data.rows, {id:genId(),isim:"",tshirtBeden:"",tshirtAdet:"",pantalonBeden:"",pantalonAdet:"",ekstra:{}}]});
+  const remRow    = id => setData({...data, rows:data.rows.filter(r=>r.id!==id)});
+  const updRow    = (id,f,v) => setData({...data, rows:data.rows.map(r=>r.id===id?{...r,[f]:v}:r)});
+  const updEkstra = (rowId,colId,v) => setData({...data, rows:data.rows.map(r=>r.id===rowId?{...r,ekstra:{...r.ekstra,[colId]:v}}:r)});
+  const addCol    = () => setData({...data, cols:[...data.cols,{id:genId(),label:"Yeni Sütun"}]});
+  const remCol    = id => setData({...data, cols:data.cols.filter(c=>c.id!==id)});
+  const updCol    = (id,v) => setData({...data, cols:data.cols.map(c=>c.id===id?{...c,label:v}:c)});
+
+  // sabit sütunlar + ekstra sütunlar
+  const fixedCols = [
+    {id:"isim",          label:"İsim",             w:150, type:"text"},
+    {id:"tshirtBeden",   label:"T-Shirt Beden",    w:110, type:"beden_ts"},
+    {id:"tshirtAdet",    label:"Adet",             w:60,  type:"num"},
+    {id:"pantalonBeden", label:"Pantolon Beden",   w:120, type:"beden_p"},
+    {id:"pantalonAdet",  label:"Adet",             w:60,  type:"num"},
+  ];
+
+  const thStyle = (w) => ({
+    padding:"9px 10px", fontSize:10, color:"#fff", fontWeight:600, letterSpacing:.5,
+    textAlign:"left", borderRight:"1px solid #334155", width:w, minWidth:w, background:"#1e293b"
+  });
+  const tdStyle = {padding:"6px 8px", borderRight:"1px solid #e5e7eb", fontSize:12, verticalAlign:"middle"};
+  const inp = (val,onChange,style={}) => <input className="inp" style={{width:"100%",fontSize:12,padding:"4px 6px",...style}} value={val||""} onChange={onChange}/>;
+  const sel = (val,onChange,opts) => <select className="inp" style={{width:"100%",fontSize:12,padding:"4px 6px",background:"transparent"}} value={val||""} onChange={onChange}>
+    <option value="">—</option>{opts.map(o=><option key={o}>{o}</option>)}
+  </select>;
+
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+      <h2 style={ss.title}>İş Elbisesi Listesi</h2>
+      <div style={{display:"flex",gap:8}}>
+        {!editing
+          ? <button className="btn btn-dark" onClick={()=>setEditing(true)}>✎ Düzenle</button>
+          : <>
+              <button className="btn btn-dark" onClick={()=>save(data)} disabled={saving}>{saving?"...":"💾 Kaydet"}</button>
+              <button className="btn btn-out" onClick={addCol}>+ Sütun Ekle</button>
+              <button className="btn btn-out" onClick={addRow}>+ Satır Ekle</button>
+              <button className="btn btn-out" onClick={load}>İptal</button>
+            </>}
+      </div>
+    </div>
+
+    <div style={{overflowX:"auto",borderRadius:10,border:"1.5px solid #d1d5db",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+      <table style={{borderCollapse:"collapse",fontSize:12,minWidth:"100%"}}>
+        <thead>
+          <tr>
+            {editing && <th style={{...thStyle(36), textAlign:"center"}}></th>}
+            {fixedCols.map(c=><th key={c.id} style={thStyle(c.w)}>{c.label}</th>)}
+            {data.cols.map(c=>(
+              <th key={c.id} style={{...thStyle(120)}}>
+                {editing
+                  ? <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                      <input style={{background:"transparent",border:"none",color:"#fff",fontSize:10,fontWeight:600,width:"80%",outline:"none"}} value={c.label} onChange={e=>updCol(c.id,e.target.value)}/>
+                      <button onClick={()=>remCol(c.id)} style={{color:"#fca5a5",background:"none",border:"none",cursor:"pointer",fontSize:14,padding:0,lineHeight:1}}>×</button>
+                    </div>
+                  : c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.rows.length===0 && (
+            <tr><td colSpan={fixedCols.length+(data.cols.length)+1} style={{padding:30,textAlign:"center",color:"#9ca3af"}}>
+              {editing ? "`Satır eklemek için + Satır Ekle butonunu kullanın.` : "Henüz kayıt yok."}
+            </td></tr>
+          )}
+          {data.rows.map((row,ri)=>(
+            <tr key={row.id} style={{borderBottom:"1px solid #f0ede8",background:ri%2===0?"#fff":"#fafafa"}}>
+              {editing && <td style={{...tdStyle,textAlign:"center",width:36}}>
+                <button onClick={()=>remRow(row.id)} style={{color:"#ef4444",background:"none",border:"none",cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>×</button>
+              </td>}
+              <td style={tdStyle}>{editing?inp(row.isim,e=>updRow(row.id,"isim",e.target.value),{fontWeight:600}):row.isim||"—"}</td>
+              <td style={tdStyle}>{editing?sel(row.tshirtBeden,e=>updRow(row.id,"tshirtBeden",e.target.value),BEDEN_TSHIRT):<span style={{fontWeight:500}}>{row.tshirtBeden||"—"}</span>}</td>
+              <td style={tdStyle}>{editing?inp(row.tshirtAdet,e=>updRow(row.id,"tshirtAdet",e.target.value)):row.tshirtAdet||""}</td>
+              <td style={tdStyle}>{editing?sel(row.pantalonBeden,e=>updRow(row.id,"pantalonBeden",e.target.value),BEDEN_PANTOLON):<span style={{fontWeight:500}}>{row.pantalonBeden||"—"}</span>}</td>
+              <td style={tdStyle}>{editing?inp(row.pantalonAdet,e=>updRow(row.id,"pantalonAdet",e.target.value)):row.pantalonAdet||""}</td>
+              {data.cols.map(c=>(
+                <td key={c.id} style={tdStyle}>
+                  {editing?inp(row.ekstra?.[c.id]||"",e=>updEkstra(row.id,c.id,e.target.value)):row.ekstra?.[c.id]||""}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    {!editing && data.rows.length>0 && (
+      <div style={{marginTop:10,fontSize:11,color:"#9ca3af"}}>{data.rows.length} kayıt</div>
+    )}
   </div>;
 }
 
